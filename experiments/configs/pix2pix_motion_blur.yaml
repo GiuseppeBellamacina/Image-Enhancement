@@ -1,0 +1,92 @@
+# Experiment Configuration: Pix2Pix GAN + Motion Blur
+experiment_name: "pix2pix_motion_blur"
+description: "Pix2Pix GAN for motion blur removal"
+
+# Data Configuration
+data:
+  dataset: "GoPro" # or "DIV2K"
+  data_root: "data/processed"
+  degradation_type: "motion_blur"
+  degradation_params:
+    kernel_size: 15
+    angle: 45
+  image_size: 256
+  patch_size: 256
+  batch_size: 8 # Smaller batch for GAN
+  num_workers: 4
+  train_split: 0.8
+  val_split: 0.1
+  test_split: 0.1
+
+# Model Configuration
+model:
+  architecture: "Pix2Pix"
+  generator:
+    type: "UNetGenerator"
+    input_channels: 3
+    output_channels: 3
+    num_downs: 8
+    ngf: 64 # Generator filters
+    use_dropout: true
+  discriminator:
+    type: "PatchGAN"
+    input_channels: 6 # Concatenated input+output
+    ndf: 64 # Discriminator filters
+    n_layers: 3
+
+# Loss Configuration
+loss:
+  type: "Combined"
+  weights:
+    l1: 100.0 # Weight for L1 loss
+    adversarial: 1.0 # Weight for adversarial loss
+  gan_mode: "vanilla" # or "lsgan"
+
+# Training Configuration
+training:
+  epochs: 200
+  learning_rate:
+    generator: 0.0002
+    discriminator: 0.0002
+  optimizer: "Adam"
+  optimizer_params:
+    beta1: 0.5
+    beta2: 0.999
+
+  # GAN-specific
+  discriminator_steps: 1
+  generator_steps: 1
+  label_smoothing: 0.1
+
+  mixed_precision: false # Can be tricky with GANs
+  clip_grad_norm: 5.0
+
+  save_every: 20
+  save_best_only: false # Save regularly for GANs
+
+  early_stopping:
+    patience: 50
+    min_delta: 0.001
+
+# Evaluation Configuration
+evaluation:
+  metrics:
+    - "PSNR"
+    - "SSIM"
+    - "LPIPS"
+    - "FID"
+  save_images: true
+  num_visual_samples: 20
+
+# Logging Configuration
+logging:
+  use_tensorboard: true
+  use_wandb: false
+  log_every: 100
+  project_name: "image-enhancement"
+
+# Reproducibility
+seed: 42
+
+# Device
+device: "cuda"

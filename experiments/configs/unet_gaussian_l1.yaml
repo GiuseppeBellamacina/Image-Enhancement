@@ -1,0 +1,85 @@
+# Experiment Configuration: UNet + Gaussian Noise + L1 Loss
+experiment_name: "unet_gaussian_l1"
+description: "Baseline UNet trained on Gaussian noise with L1 loss"
+
+# Data Configuration
+data:
+  dataset: "DIV2K" # or "BSD500", "ImageNet"
+  data_root: "data/processed"
+  degradation_type: "gaussian_noise"
+  degradation_params:
+    sigma: 25
+  image_size: 256
+  patch_size: 128
+  batch_size: 16
+  num_workers: 4
+  train_split: 0.8
+  val_split: 0.1
+  test_split: 0.1
+
+# Model Configuration
+model:
+  architecture: "UNet"
+  channels: 3
+  base_channels: 64
+  num_levels: 4
+  use_residual: false
+  use_attention: false
+  pretrained: false
+
+# Loss Configuration
+loss:
+  type: "L1" # Options: L1, L2, SSIM, Perceptual, Combined
+  weights:
+    l1: 1.0
+    # perceptual: 0.0  # Uncomment for combined losses
+    # ssim: 0.0
+
+# Training Configuration
+training:
+  epochs: 100
+  learning_rate: 0.0002
+  optimizer: "Adam"
+  scheduler: "ReduceLROnPlateau"
+  scheduler_params:
+    mode: "min"
+    factor: 0.5
+    patience: 10
+    min_lr: 0.00001
+
+  # Mixed precision training
+  mixed_precision: true
+
+  # Gradient clipping
+  clip_grad_norm: 1.0
+
+  # Checkpointing
+  save_every: 10
+  save_best_only: true
+
+  # Early stopping
+  early_stopping:
+    patience: 20
+    min_delta: 0.0001
+
+# Evaluation Configuration
+evaluation:
+  metrics:
+    - "PSNR"
+    - "SSIM"
+    - "LPIPS"
+  save_images: true
+  num_visual_samples: 10
+
+# Logging Configuration
+logging:
+  use_tensorboard: true
+  use_wandb: false
+  log_every: 50
+  project_name: "image-enhancement"
+
+# Reproducibility
+seed: 42
+
+# Device
+device: "cuda" # or "cpu"

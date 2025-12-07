@@ -60,6 +60,10 @@ Saranno implementati diversi metodi di corruzione parametrizzabili:
 - **Low-light simulation** (scaling e gamma)
 - **Haze/Fog** (atmospheric scattering)
 - **Occlusioni casuali** (block dropout)
+- **Quantizzazione + Dithering** (color quantization con diversi livelli di bit depth + dithering randomico)
+  - Quantizzazione a 8, 6, 4, 2 bit per canale
+  - Dithering: random, Floyd-Steinberg, Bayer pattern
+  - Training: immagini pesantemente quantizzate/dithered → originali o versioni con dithering sofisticato
 - **Combinazioni** (es. blur + noise, JPEG + salt-and-pepper)
 
 ---
@@ -256,7 +260,7 @@ Copyright (c) 2025 Giuseppe Bellamacina
 
 ## 🙏 Acknowledgments
 
-Progetto sviluppato per il corso di **Deep Learning** — A.A. 2024/2025
+Progetto sviluppato per il corso di **Deep Learning** — A.A. 2025/2026
 
 ---
 

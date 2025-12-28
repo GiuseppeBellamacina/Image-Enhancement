@@ -4,7 +4,6 @@ Training and validation loop utilities
 
 import torch
 from tqdm.auto import tqdm
-from typing import Tuple
 
 
 def train_epoch(

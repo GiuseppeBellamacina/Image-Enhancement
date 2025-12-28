@@ -1,0 +1,55 @@
+# Configurazione progetto Image Enhancement
+# Installazione: .\setup.ps1
+
+[project]
+name = "image-enhancement"
+version = "0.1.0"
+description = "Image Enhancement with Deep Learning - Gaussian Noise, Motion Blur, Quantization"
+authors = [{name = "Giuseppe Bellamacina", email = "bellamacina50@gmail.com"}]
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+
+dependencies = [
+    # Image Processing
+    "opencv-python>=4.8.0",
+    "Pillow>=10.0.0",
+    "scikit-image>=0.21.0",
+    "albumentations>=1.3.1",
+    
+    # Metrics and Evaluation
+    "lpips>=0.1.4",
+    "pytorch-fid>=0.3.0",
+    "scikit-learn>=1.3.0",
+    
+    # Utilities
+    "numpy>=1.24.0",
+    "scipy>=1.11.0",
+    "matplotlib>=3.7.0",
+    "seaborn>=0.12.0",
+    "tqdm>=4.65.0",
+    "PyYAML>=6.0",
+    
+    # Experiment Tracking
+    "tensorboard>=2.13.0",
+    
+    # Data Management
+    "pandas>=2.0.0",
+    "h5py>=3.9.0",
+    
+    # Development
+    "jupyter>=1.0.0",
+    "ipykernel>=0.13.0",
+    "ipywidgets>=8.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+]
+
+advanced = [
+    "timm>=0.9.0",
+    "einops>=0.6.1",
+]

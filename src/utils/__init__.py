@@ -16,6 +16,14 @@ from .experiment import (
     load_training_history,
     print_training_summary,
 )
+from .paths import (
+    find_project_root,
+    get_project_path,
+    get_experiments_dir,
+    get_results_dir,
+    get_raw_data_dir,
+    get_degraded_data_dir,
+)
 
 __all__ = [
     # Checkpoint utilities
@@ -32,4 +40,11 @@ __all__ = [
     "save_training_history",
     "load_training_history",
     "print_training_summary",
+    # Path utilities
+    "find_project_root",
+    "get_project_path",
+    "get_experiments_dir",
+    "get_results_dir",
+    "get_raw_data_dir",
+    "get_degraded_data_dir",
 ]

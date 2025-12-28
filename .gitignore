@@ -35,6 +35,9 @@ venv.bak/
 uv.lock
 .python-version
 
+# ruff
+.ruff_cache/
+
 # IDE
 .vscode/
 .idea/

@@ -41,7 +41,7 @@ Write-Host "✅ PyTorch CUDA installato" -ForegroundColor Green
 
 # Step 6: Sincronizza dipendenze da pyproject.toml (include dev)
 Write-Host "`nSincronizzazione dipendenze da pyproject.toml con uv sync..." -ForegroundColor Cyan
-uv sync
+uv sync --extra dev
 Write-Host "✅ Dipendenze sincronizzate (base + dev)" -ForegroundColor Green
 
 # Step 7: Installa progetto in editable mode

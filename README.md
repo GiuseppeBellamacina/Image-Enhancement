@@ -155,7 +155,7 @@ pip install -r requirements.txt
 
 ## 📊 Dataset utilizzati
 
-- **DIV2K** — alta qualità per super-resolution/restoration
+- [**DIV2K**](https://data.vision.ee.ethz.ch/cvl/DIV2K/) — alta qualità per super-resolution/restoration
 - **BSD500** — immagini naturali classiche
 - **ImageNet** (subset) — ampia variabilità
 - **SIDD** — real camera noisy images

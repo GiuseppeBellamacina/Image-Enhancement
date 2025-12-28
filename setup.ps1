@@ -44,7 +44,12 @@ Write-Host "`nSincronizzazione dipendenze da pyproject.toml con uv sync..." -For
 uv sync
 Write-Host "✅ Dipendenze sincronizzate (base + dev)" -ForegroundColor Green
 
-# Step 7: Verifica installazione
+# Step 7: Installa progetto in editable mode
+Write-Host "`nInstallazione progetto in editable mode..." -ForegroundColor Cyan
+uv pip install -e .
+Write-Host "✅ Progetto installato (src importabile)" -ForegroundColor Green
+
+# Step 8: Verifica installazione
 Write-Host "`nVerifica installazione..." -ForegroundColor Yellow
 
 $verifyScript = @"
@@ -87,6 +92,7 @@ python -c $verifyScript
 Write-Host "`n=== Setup Completato! ===" -ForegroundColor Cyan
 Write-Host "✅ PyTorch CUDA 13.0 installato" -ForegroundColor Green
 Write-Host "✅ Dipendenze installate da pyproject.toml" -ForegroundColor Green
+Write-Host "✅ Progetto installato in editable mode" -ForegroundColor Green
 
 Write-Host "`nComandi utili:" -ForegroundColor Yellow
 Write-Host "  Attiva ambiente: .\.venv\Scripts\Activate.ps1" -ForegroundColor White

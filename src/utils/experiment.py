@@ -5,13 +5,15 @@ Experiment setup utilities for managing output directories and configurations
 import json
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
+
+from .paths import get_results_dir
 
 
 def setup_experiment(
     base_name: str,
     config: dict,
-    results_dir: Path = Path("experiments/results"),
+    results_dir: Optional[Path] = None,
     create_subdirs: bool = True,
 ) -> Tuple[Path, Dict[str, Path]]:
     """
@@ -31,6 +33,8 @@ def setup_experiment(
     # Create experiment directory with timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     exp_name = f"{base_name}_{timestamp}"
+    if results_dir is None:
+        results_dir = get_results_dir()
     exp_dir = results_dir / exp_name
     exp_dir.mkdir(parents=True, exist_ok=True)
 

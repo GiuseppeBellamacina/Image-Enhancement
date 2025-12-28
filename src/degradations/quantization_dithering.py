@@ -6,7 +6,7 @@ low bit-depth images, vintage effects, or palette-limited formats.
 """
 
 import numpy as np
-from typing import Union, Literal
+from typing import Optional, Literal
 import cv2
 
 
@@ -41,7 +41,7 @@ def apply_random_dithering(
     image: np.ndarray,
     bits_per_channel: int = 4,
     noise_strength: float = 1.0,
-    seed: int = None
+    seed: Optional[int] = None
 ) -> np.ndarray:
     """
     Apply random dithering (additive noise before quantization).
@@ -183,7 +183,7 @@ def apply_quantization_dithering(
     bits_per_channel: int = 4,
     dithering_type: Literal['none', 'random', 'bayer2', 'bayer4', 'bayer8', 'floyd_steinberg'] = 'random',
     noise_strength: float = 1.0,
-    seed: int = None
+    seed: Optional[int] = None
 ) -> np.ndarray:
     """
     Universal function to apply color quantization with various dithering methods.
@@ -210,7 +210,9 @@ def apply_quantization_dithering(
     elif dithering_type == 'random':
         return apply_random_dithering(image, bits_per_channel, noise_strength, seed)
     elif dithering_type in ['bayer2', 'bayer4', 'bayer8']:
-        return apply_ordered_dithering(image, bits_per_channel, dithering_type)
+        # Type narrowing: at this point dithering_type can only be one of the bayer patterns
+        pattern: Literal['bayer2', 'bayer4', 'bayer8'] = dithering_type # type: ignore
+        return apply_ordered_dithering(image, bits_per_channel, pattern)
     elif dithering_type == 'floyd_steinberg':
         return apply_floyd_steinberg_dithering(image, bits_per_channel)
     else:
@@ -227,7 +229,7 @@ if __name__ == "__main__":
         test_img[:, i, :] = i  # Horizontal gradient
     
     # Test different methods
-    methods = [
+    methods: list[tuple[Literal['none', 'random', 'bayer2', 'bayer4', 'bayer8', 'floyd_steinberg'], int, float]] = [
         ('none', 4, 1.0),
         ('random', 4, 1.0),
         ('bayer4', 4, 1.0),

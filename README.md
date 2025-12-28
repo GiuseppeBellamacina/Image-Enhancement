@@ -53,18 +53,15 @@ Image-Enhancement/
 Saranno implementati diversi metodi di corruzione parametrizzabili:
 
 - **Gaussian noise** (σ variabile: 5, 15, 25, 50)
-- **Poisson noise**
-- **Salt & Pepper** (densità 1%, 5%, 10%)
-- **Gaussian blur** / **Motion blur** (kernel size e angoli variabili)
-- **JPEG compression** (quality: 30, 50, 70, 90)
-- **Low-light simulation** (scaling e gamma)
-- **Haze/Fog** (atmospheric scattering)
-- **Occlusioni casuali** (block dropout)
+- 🦄**Salt & Pepper** (densità 1%, 5%, 10%)
+- 🦄**Gaussian blur** / **Motion blur** (kernel size e angoli variabili)
+- 🦄**JPEG compression** (quality: 30, 50, 70, 90)
+- 🦄**Low-light simulation** (scaling e gamma)
 - **Quantizzazione + Dithering** (color quantization con diversi livelli di bit depth + dithering randomico)
   - Quantizzazione a 8, 6, 4, 2 bit per canale
   - Dithering: random, Floyd-Steinberg, Bayer pattern
   - Training: immagini pesantemente quantizzate/dithered → originali o versioni con dithering sofisticato
-- **Combinazioni** (es. blur + noise, JPEG + salt-and-pepper)
+- ⚠️**Combinazioni** (es. blur + noise, JPEG + salt-and-pepper)
 
 ---
 
@@ -72,20 +69,19 @@ Saranno implementati diversi metodi di corruzione parametrizzabili:
 
 ### Baseline
 
-- Filtri classici (median, gaussian, bilateral)
-- BM3D (opzionale)
+- 🗿 Filtri classici (median, gaussian, bilateral)
 
 ### CNN-based
 
-- **Denoising Autoencoder**
-- **UNet** (standard)
+- **Denoising Autoencoder** -> Mattia
+- **UNet** (standard) -> Giuseppe
 - **Residual UNet** (con skip connections)
 - **DnCNN** (Denoising CNN)
 - **Attention UNet** (opzionale)
 
 ### GAN-based
 
-- **Pix2Pix** (conditional GAN)
+- **Pix2Pix** (conditional GAN) -> Daniele
 - **SRGAN** / **ESRGAN** (opzionale)
 
 ### Transformer-based

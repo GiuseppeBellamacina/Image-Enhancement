@@ -76,7 +76,7 @@ Saranno implementati diversi metodi di corruzione parametrizzabili:
 - **Denoising Autoencoder** -> Mattia
 - **UNet** (standard) -> Giuseppe
 - **Residual UNet** (con skip connections)
-- **DnCNN** (Denoising CNN)
+- **DnCNN** (Denoising CNN) -> Francesco
 - **Attention UNet** (opzionale)
 
 ### GAN-based

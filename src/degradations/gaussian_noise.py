@@ -5,13 +5,13 @@ Adds Gaussian noise to images with configurable standard deviation.
 """
 
 import numpy as np
-from typing import Union
+from typing import Union, Optional
 
 
 def add_gaussian_noise(
     image: np.ndarray,
     sigma: Union[int, float] = 25,
-    seed: int = None
+    seed: Optional[int] = None
 ) -> np.ndarray:
     """
     Add Gaussian noise to an image.

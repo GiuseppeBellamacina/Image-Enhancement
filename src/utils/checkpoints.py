@@ -10,7 +10,7 @@ from typing import Optional
 def save_checkpoint(
     model: torch.nn.Module,
     optimizer: torch.optim.Optimizer,
-    scheduler: Optional[torch.optim.lr_scheduler._LRScheduler],
+    scheduler: Optional[torch.optim.lr_scheduler.LRScheduler],
     epoch: int,
     metrics: dict,
     filepath: Path
@@ -45,7 +45,7 @@ def load_checkpoint(
     filepath: Path,
     model: torch.nn.Module,
     optimizer: Optional[torch.optim.Optimizer] = None,
-    scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
+    scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None,
     device: str = 'cpu'
 ) -> dict:
     """

@@ -7,7 +7,7 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
-from typing import List, Tuple, Optional
+from typing import Tuple, Optional
 
 
 def denormalize_tensor(

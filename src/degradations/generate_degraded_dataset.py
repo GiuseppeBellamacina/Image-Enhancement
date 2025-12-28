@@ -5,7 +5,7 @@ Creates corrupted versions of DIV2K train and validation sets
 
 import cv2
 from pathlib import Path
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import argparse
 from typing import Literal
 from .quantization_dithering import apply_quantization_dithering

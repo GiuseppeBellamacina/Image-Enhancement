@@ -9,6 +9,13 @@ from .visualization import (
     plot_inference_results,
     plot_training_curves
 )
+from .experiment import (
+    setup_experiment,
+    load_experiment_config,
+    save_training_history,
+    load_training_history,
+    print_training_summary
+)
 
 __all__ = [
     # Checkpoint utilities
@@ -19,4 +26,10 @@ __all__ = [
     'plot_image_comparison',
     'plot_inference_results',
     'plot_training_curves',
+    # Experiment utilities
+    'setup_experiment',
+    'load_experiment_config',
+    'save_training_history',
+    'load_training_history',
+    'print_training_summary',
 ]

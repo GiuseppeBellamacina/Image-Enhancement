@@ -24,11 +24,16 @@ share/python-wheels/
 MANIFEST
 
 # Virtual Environments
+.venv/
 venv/
 env/
 ENV/
 env.bak/
 venv.bak/
+
+# UV
+uv.lock
+.python-version
 
 # IDE
 .vscode/

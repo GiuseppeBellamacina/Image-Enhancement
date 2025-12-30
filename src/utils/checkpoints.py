@@ -298,9 +298,7 @@ def resume_training(
     completed_epoch = checkpoint_info["epoch"]
     start_epoch = completed_epoch + 1
 
-    print(
-        f"\n📈 Resuming from epoch {start_epoch} (last completed: {completed_epoch})"
-    )
+    print(f"\n📈 Resuming from epoch {start_epoch} (last completed: {completed_epoch})")
     print(f"📊 Previous best metrics: {checkpoint_info['metrics'].get('val', {})}")
     print("=" * 80 + "\n")
 

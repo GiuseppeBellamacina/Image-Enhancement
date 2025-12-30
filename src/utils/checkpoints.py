@@ -5,7 +5,6 @@ Checkpoint utilities for saving and loading model states
 import torch
 from pathlib import Path
 from typing import Optional, Union
-from datetime import datetime
 
 
 def save_checkpoint(

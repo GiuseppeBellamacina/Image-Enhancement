@@ -10,6 +10,7 @@ from torch.optim.lr_scheduler import LRScheduler
 
 from .training import train_epoch, validate
 from ..utils.checkpoints import save_checkpoint
+from ..utils.experiment import save_training_history
 
 
 def run_training(
@@ -62,13 +63,26 @@ def run_training(
         - history: Dict with training metrics history
         - best_info: Dict with best epoch and validation loss
     """
-    # Training history
-    if initial_history is not None:
-        # Continue from previous history
-        history = initial_history
-        print(
-            f"📊 Continuing from previous history ({len(history['train_loss'])} epochs recorded)"
-        )
+    # Training history - validate and merge with previous if exists
+    if initial_history is not None and isinstance(initial_history, dict):
+        # Validate that history has the expected structure
+        required_keys = ["train_loss", "train_l1", "train_ssim", "val_loss", "val_l1", "val_ssim", "lr"]
+        if all(key in initial_history for key in required_keys):
+            history = initial_history
+            print(
+                f"📊 Continuing from previous history ({len(history['train_loss'])} epochs recorded)"
+            )
+        else:
+            print("⚠️  Previous history has invalid structure, starting fresh")
+            history = {
+                "train_loss": [],
+                "train_l1": [],
+                "train_ssim": [],
+                "val_loss": [],
+                "val_l1": [],
+                "val_ssim": [],
+                "lr": [],
+            }
     else:
         # Start fresh history
         history = {
@@ -83,25 +97,28 @@ def run_training(
 
     # Best model tracking
     best_val_loss = initial_best_loss
-    best_epoch = start_epoch if start_epoch > 0 else 0
+    best_epoch = start_epoch if start_epoch > 0 else 1
     patience_counter = 0
 
     print("\n" + "=" * 80)
-    if start_epoch > 0:
+    if start_epoch > 1:
         print(f"🔄 Resuming Training from Epoch {start_epoch}")
-        print(f"   Will train epochs {start_epoch} to {num_epochs - 1}")
+        print(f"   Will train epochs {start_epoch} to {num_epochs}")
         print(f"   Previous best loss: {initial_best_loss:.4f}")
     else:
         print("🚀 Starting Training")
-        print(f"   Will train epochs 0 to {num_epochs - 1}")
+        print(f"   Will train epochs 1 to {num_epochs}")
     print("=" * 80 + "\n")
 
+    # Track if training completed successfully
+    training_interrupted = False
+    
     try:
-        for epoch in range(start_epoch, num_epochs):
+        for epoch in range(start_epoch if start_epoch > 0 else 1, num_epochs + 1):
 
             # Learning rate warmup (only if not already completed in previous training)
-            if epoch < warmup_epochs and start_epoch < warmup_epochs:
-                lr = learning_rate * (epoch + 1) / warmup_epochs
+            if epoch <= warmup_epochs and start_epoch <= warmup_epochs:
+                lr = learning_rate * epoch / warmup_epochs
                 for param_group in optimizer.param_groups:
                     param_group["lr"] = lr
 
@@ -111,13 +128,13 @@ def run_training(
             )
 
             # Validate
-            if (epoch + 1) % val_every == 0:
+            if epoch % val_every == 0:
                 val_metrics = validate(model, val_loader, criterion, device, epoch)
             else:
                 val_metrics = None
 
             # Update learning rate
-            if epoch >= warmup_epochs and scheduler:
+            if epoch > warmup_epochs and scheduler:
                 scheduler.step()
 
             current_lr = optimizer.param_groups[0]["lr"]
@@ -145,7 +162,7 @@ def run_training(
                 writer.add_scalar("SSIM/val", val_metrics["ssim"], epoch)
 
             # Print epoch summary
-            print(f"\nEpoch {epoch+1}/{num_epochs}")
+            print(f"\nEpoch {epoch}/{num_epochs}")
             print(
                 f"  Train - Loss: {train_metrics['loss']:.4f} | L1: {train_metrics['l1']:.4f} | SSIM: {train_metrics['ssim']:.3f}"
             )
@@ -174,7 +191,7 @@ def run_training(
                 patience_counter += 1
 
             # Periodic checkpoint
-            if (epoch + 1) % save_every == 0:
+            if epoch % save_every == 0:
                 save_checkpoint(
                     model,
                     optimizer,
@@ -185,9 +202,9 @@ def run_training(
                         if val_metrics
                         else {"train": train_metrics}
                     ),
-                    checkpoints_dir / f"checkpoint_epoch_{epoch+1:03d}.pth",
+                    checkpoints_dir / f"checkpoint_epoch_{epoch:03d}.pth",
                 )
-                print(f"  💾 Checkpoint saved (epoch {epoch+1})")
+                print(f"  💾 Checkpoint saved (epoch {epoch})")
 
             # Early stopping
             if patience_counter >= patience:
@@ -196,15 +213,44 @@ def run_training(
                 )
                 break
 
+            # Save history after each epoch
+            save_training_history(history, checkpoints_dir.parent)
+            
             print("-" * 80)
 
     except KeyboardInterrupt:
         print("\n⚠️  Training interrupted by user!")
+        training_interrupted = True
+    except Exception as e:
+        print(f"\n❌ Error during training: {e}")
+        training_interrupted = True
+        raise
+    finally:
+        # Always save history and close writer, even if interrupted
+        print("\n💾 Saving final state...")
+        try:
+            save_training_history(history, checkpoints_dir.parent)
+            print("✅ Training history saved")
+        except Exception as e:
+            print(f"⚠️  Failed to save history: {e}")
+        
+        try:
+            writer.close()
+            print("✅ TensorBoard writer closed")
+        except Exception as e:
+            print(f"⚠️  Failed to close writer: {e}")
 
-    print("\n" + "=" * 80)
-    print("✅ Training Completed!")
-    print(f"   Best validation loss: {best_val_loss:.4f} at epoch {best_epoch+1}")
-    print("=" * 80 + "\n")
+    if not training_interrupted:
+        print("\n" + "=" * 80)
+        print("✅ Training Completed!")
+        print(f"   Best validation loss: {best_val_loss:.4f} at epoch {best_epoch}")
+        print("=" * 80 + "\n")
+    else:
+        print("\n" + "=" * 80)
+        print("⚠️  Training Interrupted")
+        print(f"   Best validation loss so far: {best_val_loss:.4f} at epoch {best_epoch}")
+        print(f"   Completed epochs: {len(history['train_loss'])}")
+        print("=" * 80 + "\n")
 
     # Return history and best model info
     best_info = {"best_epoch": best_epoch, "best_val_loss": best_val_loss}

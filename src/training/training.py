@@ -36,7 +36,7 @@ def train_epoch(
     running_l1 = 0.0
     running_ssim = 0.0
 
-    pbar = tqdm(train_loader, desc=f"Epoch {epoch+1} [Train]", leave=False)
+    pbar = tqdm(train_loader, desc=f"Epoch {epoch} [Train]", leave=False)
 
     for degraded, clean in pbar:
         degraded = degraded.to(device)
@@ -109,7 +109,7 @@ def validate(
     running_l1 = 0.0
     running_ssim = 0.0
 
-    pbar = tqdm(val_loader, desc=f"Epoch {epoch+1} [Val]", leave=False)
+    pbar = tqdm(val_loader, desc=f"Epoch {epoch} [Val]", leave=False)
 
     for degraded, clean in pbar:
         degraded = degraded.to(device)

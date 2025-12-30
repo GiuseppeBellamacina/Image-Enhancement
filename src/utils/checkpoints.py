@@ -293,10 +293,13 @@ def resume_training(
         history = {}
 
     # Calculate starting epoch for resuming
-    start_epoch = checkpoint_info["epoch"] + 1
+    # Checkpoint now stores 1-based epoch (the epoch that was just completed)
+    # So next epoch to train is checkpoint["epoch"] + 1
+    completed_epoch = checkpoint_info["epoch"]
+    start_epoch = completed_epoch + 1
 
     print(
-        f"\n📈 Resuming from epoch {start_epoch} (completed: {checkpoint_info['epoch']})"
+        f"\n📈 Resuming from epoch {start_epoch} (last completed: {completed_epoch})"
     )
     print(f"📊 Previous best metrics: {checkpoint_info['metrics'].get('val', {})}")
     print("=" * 80 + "\n")

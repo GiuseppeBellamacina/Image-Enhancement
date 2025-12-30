@@ -3,6 +3,7 @@ Checkpoint utilities for saving and loading model states
 """
 
 import torch
+import shutil
 from pathlib import Path
 from typing import Optional, Union
 
@@ -75,6 +76,68 @@ def load_checkpoint(
         scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
 
     return {"epoch": checkpoint["epoch"], "metrics": checkpoint.get("metrics", {})}
+
+
+def ensure_best_model_exists(
+    checkpoints_dir: Path,
+    checkpoint_name: str = "best_model.pth",
+) -> bool:
+    """
+    Ensure that best_model.pth exists in checkpoints directory.
+    If it doesn't exist, create it from the most recent checkpoint.
+
+    This is useful when training was interrupted (e.g., OOM crash) and only
+    emergency/periodic checkpoints exist but best_model.pth is missing.
+
+    Args:
+        checkpoints_dir: Directory containing checkpoints
+        checkpoint_name: Name of the best model checkpoint (default: 'best_model.pth')
+
+    Returns:
+        True if best_model.pth exists (or was successfully created), False otherwise
+    """
+    best_model_path = checkpoints_dir / checkpoint_name
+
+    # If best_model.pth already exists, we're good
+    if best_model_path.exists():
+        return True
+
+    print(f"\n⚠️  {checkpoint_name} not found in {checkpoints_dir}")
+
+    # Look for alternative checkpoints to use
+    checkpoint_candidates = []
+
+    # 1. Look for emergency checkpoints (from OOM crashes)
+    emergency_checkpoints = sorted(
+        checkpoints_dir.glob("emergency_checkpoint_oom_epoch_*.pth"), reverse=True
+    )
+    checkpoint_candidates.extend(emergency_checkpoints)
+
+    # 2. Look for periodic checkpoints (checkpoint_epoch_XXX.pth)
+    periodic_checkpoints = sorted(
+        checkpoints_dir.glob("checkpoint_epoch_*.pth"), reverse=True
+    )
+    checkpoint_candidates.extend(periodic_checkpoints)
+
+    if not checkpoint_candidates:
+        print(f"   ❌ No alternative checkpoints found in {checkpoints_dir}")
+        return False
+
+    # Use the most recent checkpoint
+    source_checkpoint = checkpoint_candidates[0]
+    print(f"   📋 Found alternative checkpoint: {source_checkpoint.name}")
+    print(f"   🔄 Copying to {checkpoint_name}...")
+
+    try:
+        shutil.copy2(source_checkpoint, best_model_path)
+        print(f"   ✅ Successfully created {checkpoint_name}")
+        print(
+            f"   ⚠️  Note: This may not be the actual best model, just the most recent checkpoint"
+        )
+        return True
+    except Exception as e:
+        print(f"   ❌ Failed to copy checkpoint: {e}")
+        return False
 
 
 def load_pretrained_model(
@@ -251,6 +314,34 @@ def resume_training(
     print("🔄 Resuming Training from Checkpoint")
     print("=" * 80 + "\n")
 
+    # Determine experiment directory path first
+    if model_name and degradation:
+        base_dir = get_model_experiments_dir(model_name, degradation)
+        if experiment_path == "latest":
+            experiment_dirs = sorted(
+                [d for d in base_dir.iterdir() if d.is_dir()],
+                key=lambda x: x.name,
+                reverse=True,
+            )
+            if not experiment_dirs:
+                raise FileNotFoundError(f"No experiments found in {base_dir}")
+            exp_dir = experiment_dirs[0]
+        else:
+            exp_dir = base_dir / experiment_path
+    else:
+        exp_dir = Path(experiment_path)
+        if not exp_dir.is_absolute() and not str(exp_dir).startswith("experiments"):
+            root = find_project_root()
+            exp_dir = root / "experiments" / exp_dir
+
+    # Ensure checkpoints directory exists
+    checkpoints_dir = exp_dir / "checkpoints"
+    if not checkpoints_dir.exists():
+        raise FileNotFoundError(f"Checkpoints directory not found: {checkpoints_dir}")
+
+    # Ensure best_model.pth exists (create from latest checkpoint if missing)
+    ensure_best_model_exists(checkpoints_dir, checkpoint_name)
+
     # Load checkpoint with optimizer and scheduler
     checkpoint_info = load_pretrained_model(
         model=model,
@@ -262,24 +353,6 @@ def resume_training(
         device=device,
         checkpoint_name=checkpoint_name,
     )
-
-    # Determine experiment directory path
-    if model_name and degradation:
-        base_dir = get_model_experiments_dir(model_name, degradation)
-        if experiment_path == "latest":
-            experiment_dirs = sorted(
-                [d for d in base_dir.iterdir() if d.is_dir()],
-                key=lambda x: x.name,
-                reverse=True,
-            )
-            exp_dir = experiment_dirs[0]
-        else:
-            exp_dir = base_dir / experiment_path
-    else:
-        exp_dir = Path(experiment_path)
-        if not exp_dir.is_absolute() and not str(exp_dir).startswith("experiments"):
-            root = find_project_root()
-            exp_dir = root / "experiments" / exp_dir
 
     # Try to load previous training history
     history = {}

@@ -7,6 +7,7 @@ from .checkpoints import (
     load_checkpoint,
     load_pretrained_model,
     resume_training,
+    ensure_best_model_exists,
 )
 from .visualization import (
     denormalize_tensor,
@@ -37,6 +38,7 @@ __all__ = [
     "load_checkpoint",
     "load_pretrained_model",
     "resume_training",
+    "ensure_best_model_exists",
     # Visualization utilities
     "denormalize_tensor",
     "plot_image_comparison",

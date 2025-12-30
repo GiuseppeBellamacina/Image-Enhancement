@@ -1,3 +1,8 @@
+# Deep Learning Framework
+# NOTE: Install PyTorch separately from https://pytorch.org/get-started/locally/
+# Example for CUDA 12.1: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
+# Example for CPU only: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+
 # Image Processing
 opencv-python>=4.8.0
 Pillow>=10.0.0
@@ -28,6 +33,7 @@ jupyter>=1.0.0
 ipykernel>=0.13.0
 ipywidgets>=8.0.0
 pytorch-msssim>=1.0.0
+httpx>=0.24.0
 
 # Development (optional)
 black[jupyter]>=25.12.0

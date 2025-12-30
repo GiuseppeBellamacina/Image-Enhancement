@@ -33,6 +33,7 @@ def run_training(
     start_epoch: int = 0,
     initial_best_loss: float = float("inf"),
     initial_history: Dict | None = None,
+    use_amp: bool = False,
 ) -> Tuple[Dict, Dict]:
     """
     Run complete training loop with validation, checkpointing, and early stopping.
@@ -57,6 +58,7 @@ def run_training(
         start_epoch: Starting epoch (0 for new training, >0 for resumed training)
         initial_best_loss: Initial best validation loss (inf for new training)
         initial_history: Previous training history to continue from (optional)
+        use_amp: Whether to use automatic mixed precision (reduces VRAM by ~40-50%)
 
     Returns:
         Tuple of (history, best_info) where:
@@ -66,7 +68,15 @@ def run_training(
     # Training history - validate and merge with previous if exists
     if initial_history is not None and isinstance(initial_history, dict):
         # Validate that history has the expected structure
-        required_keys = ["train_loss", "train_l1", "train_ssim", "val_loss", "val_l1", "val_ssim", "lr"]
+        required_keys = [
+            "train_loss",
+            "train_l1",
+            "train_ssim",
+            "val_loss",
+            "val_l1",
+            "val_ssim",
+            "lr",
+        ]
         if all(key in initial_history for key in required_keys):
             history = initial_history
             print(
@@ -95,6 +105,15 @@ def run_training(
             "lr": [],
         }
 
+    # Initialize GradScaler for mixed precision training
+    scaler = None
+    if use_amp and device == "cuda":
+        scaler = torch.amp.grad_scaler.GradScaler()
+        print("⚡ Mixed Precision Training: ENABLED (fp16)")
+    elif use_amp and device == "cpu":
+        print("⚠️  Mixed precision requested but not available on CPU")
+        use_amp = False
+
     # Best model tracking
     best_val_loss = initial_best_loss
     best_epoch = start_epoch if start_epoch > 0 else 1
@@ -112,7 +131,7 @@ def run_training(
 
     # Track if training completed successfully
     training_interrupted = False
-    
+
     try:
         for epoch in range(start_epoch if start_epoch > 0 else 1, num_epochs + 1):
 
@@ -124,12 +143,22 @@ def run_training(
 
             # Train
             train_metrics = train_epoch(
-                model, train_loader, criterion, optimizer, device, epoch, gradient_clip
+                model,
+                train_loader,
+                criterion,
+                optimizer,
+                device,
+                epoch,
+                gradient_clip,
+                scaler=scaler,
+                use_amp=use_amp,
             )
 
             # Validate
             if epoch % val_every == 0:
-                val_metrics = validate(model, val_loader, criterion, device, epoch)
+                val_metrics = validate(
+                    model, val_loader, criterion, device, epoch, use_amp=use_amp
+                )
             else:
                 val_metrics = None
 
@@ -215,14 +244,95 @@ def run_training(
 
             # Save history after each epoch
             save_training_history(history, checkpoints_dir.parent)
-            
+
             print("-" * 80)
 
     except KeyboardInterrupt:
         print("\n⚠️  Training interrupted by user!")
         training_interrupted = True
+    except (torch.cuda.OutOfMemoryError, RuntimeError) as e:
+        # Check if it's an OOM error
+        if "out of memory" in str(e).lower():
+            print("\n" + "=" * 80)
+            print("💥 CUDA OUT OF MEMORY ERROR")
+            print("=" * 80)
+            print(f"\nError: {e}\n")
+
+            # Save emergency checkpoint
+            print("💾 Saving emergency checkpoint...")
+            try:
+                # Get current epoch from history length
+                current_epoch = len(history["train_loss"])
+
+                # Create emergency metrics
+                emergency_metrics = {
+                    "train": {
+                        "loss": (
+                            history["train_loss"][-1]
+                            if history["train_loss"]
+                            else float("inf")
+                        )
+                    }
+                }
+                if history["val_loss"]:
+                    emergency_metrics["val"] = {"loss": history["val_loss"][-1]}
+
+                save_checkpoint(
+                    model,
+                    optimizer,
+                    scheduler,
+                    current_epoch,
+                    emergency_metrics,
+                    checkpoints_dir
+                    / f"emergency_checkpoint_oom_epoch_{current_epoch}.pth",
+                )
+                print(
+                    f"✅ Emergency checkpoint saved: emergency_checkpoint_oom_epoch_{current_epoch}.pth"
+                )
+            except Exception as save_error:
+                print(f"⚠️  Failed to save emergency checkpoint: {save_error}")
+
+            # Clear CUDA cache
+            if device == "cuda":
+                print("🧹 Clearing CUDA cache...")
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+                print("✅ CUDA cache cleared")
+
+            print("\n" + "=" * 80)
+            print("🔧 HOW TO RECOVER:")
+            print("=" * 80)
+            print("\n📌 IF NOTEBOOK IS STILL OPEN:")
+            print("   1. Modify Cell Configuration:")
+            print("      config['batch_size'] = 4  # Reduce (was 8)")
+            print("      config['resume_from_checkpoint'] = True")
+            print("   2. Re-run ONLY Cell Configuration")
+            print("   3. Re-run ONLY Cell Training Loop")
+            print(
+                "   ⚠️  DO NOT re-run Cell Experiment Setup - it would create a new experiment!"
+            )
+            print("\n📕 IF NOTEBOOK WAS CLOSED:")
+            print("   1. Modify Cell Configuration:")
+            print("      config['batch_size'] = 4  # Reduce")
+            print("      config['resume_from_checkpoint'] = True")
+            print("      config['resume_experiment'] = 'latest'")
+            print("   2. Re-run all cells from the beginning")
+            print("   ✅ It will automatically load the previous experiment")
+            print("\n💡 MEMORY REDUCTION OPTIONS:")
+            print("   • batch_size: 8 → 4 → 2 → 1")
+            print("\n📁 Checkpoints saved in:")
+            print(f"   {checkpoints_dir}")
+            print("=" * 80 + "\n")
+
+            training_interrupted = True
+            # Don't re-raise, allow graceful shutdown
+        else:
+            # Non-OOM RuntimeError
+            print(f"\n❌ Runtime error during training: {e}")
+            training_interrupted = True
+            raise
     except Exception as e:
-        print(f"\n❌ Error during training: {e}")
+        print(f"\n❌ Unexpected error during training: {e}")
         training_interrupted = True
         raise
     finally:
@@ -233,7 +343,7 @@ def run_training(
             print("✅ Training history saved")
         except Exception as e:
             print(f"⚠️  Failed to save history: {e}")
-        
+
         try:
             writer.close()
             print("✅ TensorBoard writer closed")
@@ -248,7 +358,9 @@ def run_training(
     else:
         print("\n" + "=" * 80)
         print("⚠️  Training Interrupted")
-        print(f"   Best validation loss so far: {best_val_loss:.4f} at epoch {best_epoch}")
+        print(
+            f"   Best validation loss so far: {best_val_loss:.4f} at epoch {best_epoch}"
+        )
         print(f"   Completed epochs: {len(history['train_loss'])}")
         print("=" * 80 + "\n")
 

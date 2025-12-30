@@ -152,7 +152,7 @@ def load_pretrained_model(
                     f"No experiments found for {model_name}/{degradation} at {base_dir}"
                 )
 
-            exp_dir = experiment_dirs[0]
+            exp_dir = experiment_dirs[1]  # 1 to skip the current experiment
             print(f"📂 Loading most recent experiment: {exp_dir.name}")
         else:
             # Use provided experiment name/timestamp
@@ -201,10 +201,10 @@ def resume_training(
     degradation: Optional[str] = None,
     device: str = "cpu",
     checkpoint_name: str = "best_model.pth",
-) -> tuple[dict, int]:
+) -> tuple[dict, int, dict, Path]:
     """
     Resume training from a previous checkpoint.
-    
+
     This is a convenience wrapper around load_pretrained_model specifically for
     resuming training. It automatically loads model, optimizer, and scheduler states
     and returns the starting epoch for continuing training.
@@ -223,30 +223,19 @@ def resume_training(
         checkpoint_name: Name of checkpoint file (default: 'best_model.pth')
 
     Returns:
-        Tuple of (checkpoint_info, start_epoch) where:
+        Tuple of (checkpoint_info, start_epoch, history, exp_dir) where:
         - checkpoint_info: Dictionary containing epoch and metrics from checkpoint
         - start_epoch: Epoch number to start training from (checkpoint epoch + 1)
+        - history: Previous training history (empty dict if not found)
+        - exp_dir: Path to the experiment directory
 
     Examples:
         # Resume from most recent unet/gaussian experiment
-        >>> checkpoint_info, start_epoch = resume_training(
+        >>> info, start_epoch, history, exp_dir = resume_training(
         ...     model=model,
         ...     optimizer=optimizer,
         ...     scheduler=scheduler,
         ...     experiment_path="latest",
-        ...     model_name="unet",
-        ...     degradation="gaussian"
-        ... )
-        >>> # Continue training from start_epoch
-        >>> for epoch in range(start_epoch, num_epochs):
-        ...     train_epoch(...)
-
-        # Resume from specific experiment
-        >>> checkpoint_info, start_epoch = resume_training(
-        ...     model=model,
-        ...     optimizer=optimizer,
-        ...     scheduler=scheduler,
-        ...     experiment_path="20251229_224726",
         ...     model_name="unet",
         ...     degradation="gaussian"
         ... )
@@ -255,10 +244,13 @@ def resume_training(
         FileNotFoundError: If the experiment or checkpoint file is not found
         ValueError: If invalid arguments are provided
     """
+    from .paths import get_model_experiments_dir, find_project_root
+    from .experiment import load_training_history
+
     print("\n" + "=" * 80)
     print("🔄 Resuming Training from Checkpoint")
     print("=" * 80 + "\n")
-    
+
     # Load checkpoint with optimizer and scheduler
     checkpoint_info = load_pretrained_model(
         model=model,
@@ -270,13 +262,43 @@ def resume_training(
         device=device,
         checkpoint_name=checkpoint_name,
     )
-    
+
+    # Determine experiment directory path
+    if model_name and degradation:
+        base_dir = get_model_experiments_dir(model_name, degradation)
+        if experiment_path == "latest":
+            experiment_dirs = sorted(
+                [d for d in base_dir.iterdir() if d.is_dir()],
+                key=lambda x: x.name,
+                reverse=True,
+            )
+            exp_dir = experiment_dirs[0]
+        else:
+            exp_dir = base_dir / experiment_path
+    else:
+        exp_dir = Path(experiment_path)
+        if not exp_dir.is_absolute() and not str(exp_dir).startswith("experiments"):
+            root = find_project_root()
+            exp_dir = root / "experiments" / exp_dir
+
+    # Try to load previous training history
+    history = {}
+    try:
+        history = load_training_history(exp_dir)
+        print(
+            f"📜 Loaded previous training history: {len(history.get('train_loss', []))} epochs"
+        )
+    except FileNotFoundError:
+        print("📜 No previous history found, starting fresh tracking")
+        history = {}
+
     # Calculate starting epoch for resuming
     start_epoch = checkpoint_info["epoch"] + 1
-    
-    print(f"\n📈 Training will resume from epoch {start_epoch}")
+
+    print(
+        f"\n📈 Resuming from epoch {start_epoch} (completed: {checkpoint_info['epoch']})"
+    )
     print(f"📊 Previous best metrics: {checkpoint_info['metrics'].get('val', {})}")
     print("=" * 80 + "\n")
-    
-    return checkpoint_info, start_epoch
 
+    return checkpoint_info, start_epoch, history, exp_dir

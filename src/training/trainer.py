@@ -29,6 +29,8 @@ def run_training(
     save_every: int = 5,
     val_every: int = 1,
     gradient_clip: float = 1.0,
+    start_epoch: int = 0,
+    initial_best_loss: float = float("inf"),
 ) -> Tuple[Dict, Dict]:
     """
     Run complete training loop with validation, checkpointing, and early stopping.
@@ -50,6 +52,8 @@ def run_training(
         save_every: Save checkpoint every N epochs
         val_every: Validate every N epochs
         gradient_clip: Maximum gradient norm for clipping
+        start_epoch: Starting epoch (0 for new training, >0 for resumed training)
+        initial_best_loss: Initial best validation loss (inf for new training)
 
     Returns:
         Tuple of (history, best_info) where:
@@ -68,16 +72,20 @@ def run_training(
     }
 
     # Best model tracking
-    best_val_loss = float("inf")
-    best_epoch = 0
+    best_val_loss = initial_best_loss
+    best_epoch = start_epoch if start_epoch > 0 else 0
     patience_counter = 0
 
     print("\n" + "=" * 80)
-    print("🚀 Starting Training")
+    if start_epoch > 0:
+        print(f"🔄 Resuming Training from Epoch {start_epoch + 1}")
+        print(f"   Previous best loss: {initial_best_loss:.4f}")
+    else:
+        print("🚀 Starting Training")
     print("=" * 80 + "\n")
 
     try:
-        for epoch in range(num_epochs):
+        for epoch in range(start_epoch, num_epochs):
 
             # Learning rate warmup
             if epoch < warmup_epochs:

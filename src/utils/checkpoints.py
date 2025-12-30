@@ -4,7 +4,8 @@ Checkpoint utilities for saving and loading model states
 
 import torch
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
+from datetime import datetime
 
 
 def save_checkpoint(
@@ -75,3 +76,208 @@ def load_checkpoint(
         scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
 
     return {"epoch": checkpoint["epoch"], "metrics": checkpoint.get("metrics", {})}
+
+
+def load_pretrained_model(
+    model: torch.nn.Module,
+    experiment_path: Union[str, Path],
+    model_name: Optional[str] = None,
+    degradation: Optional[str] = None,
+    optimizer: Optional[torch.optim.Optimizer] = None,
+    scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None,
+    device: str = "cpu",
+    checkpoint_name: str = "best_model.pth",
+) -> dict:
+    """
+    Load a pretrained model from a previous experiment.
+
+    This function supports two modes:
+    1. Relative path mode: Pass model_name and degradation to automatically find
+       the most recent experiment for that combination.
+    2. Absolute path mode: Pass the full path to a specific experiment directory.
+
+    Args:
+        model: Model to load state into
+        experiment_path: Either:
+            - Relative path from experiments/[model_name]/[degradation]/ (e.g., "20251229_224726")
+            - Full path to experiment directory
+            - "latest" to load the most recent experiment
+        model_name: Model name (e.g., 'unet', 'dncnn') - required if using relative path
+        degradation: Degradation type (e.g., 'gaussian', 'dithering') - required if using relative path
+        optimizer: Optimizer to load state into (optional)
+        scheduler: Scheduler to load state into (optional)
+        device: Device to map tensors to
+        checkpoint_name: Name of checkpoint file (default: 'best_model.pth')
+
+    Returns:
+        Dictionary containing epoch and metrics from checkpoint
+
+    Examples:
+        # Load most recent experiment for unet/gaussian
+        >>> load_pretrained_model(model, "latest", model_name="unet", degradation="gaussian")
+
+        # Load specific experiment by timestamp
+        >>> load_pretrained_model(model, "20251229_224726", model_name="unet", degradation="gaussian")
+
+        # Load from full path
+        >>> load_pretrained_model(model, "experiments/unet/gaussian/20251229_224726")
+
+    Raises:
+        FileNotFoundError: If the experiment or checkpoint file is not found
+        ValueError: If invalid arguments are provided
+    """
+    from .paths import get_model_experiments_dir, find_project_root
+
+    experiment_path = str(experiment_path)
+
+    # Determine the full path to the experiment directory
+    if model_name and degradation:
+        # Relative path mode
+        base_dir = get_model_experiments_dir(model_name, degradation)
+
+        if experiment_path == "latest":
+            # Find the most recent experiment
+            if not base_dir.exists():
+                raise FileNotFoundError(
+                    f"No experiments found for {model_name}/{degradation} at {base_dir}"
+                )
+
+            experiment_dirs = sorted(
+                [d for d in base_dir.iterdir() if d.is_dir()],
+                key=lambda x: x.name,
+                reverse=True,
+            )
+
+            if not experiment_dirs:
+                raise FileNotFoundError(
+                    f"No experiments found for {model_name}/{degradation} at {base_dir}"
+                )
+
+            exp_dir = experiment_dirs[0]
+            print(f"📂 Loading most recent experiment: {exp_dir.name}")
+        else:
+            # Use provided experiment name/timestamp
+            exp_dir = base_dir / experiment_path
+
+    else:
+        # Absolute path mode
+        exp_dir = Path(experiment_path)
+
+        # If path doesn't start with experiments/, assume it's relative from experiments root
+        if not exp_dir.is_absolute() and not str(exp_dir).startswith("experiments"):
+            # Path like "unet/gaussian/20251229_224726"
+            root = find_project_root()
+            exp_dir = root / "experiments" / exp_dir
+
+    # Verify experiment directory exists
+    if not exp_dir.exists():
+        raise FileNotFoundError(f"Experiment directory not found: {exp_dir}")
+
+    # Load the checkpoint
+    checkpoint_path = exp_dir / "checkpoints" / checkpoint_name
+
+    if not checkpoint_path.exists():
+        raise FileNotFoundError(
+            f"Checkpoint file not found: {checkpoint_path}\n"
+            f"Available files: {list((exp_dir / 'checkpoints').glob('*.pth')) if (exp_dir / 'checkpoints').exists() else []}"
+        )
+
+    print(f"📥 Loading checkpoint from: {checkpoint_path}")
+    result = load_checkpoint(checkpoint_path, model, optimizer, scheduler, device)
+
+    print(
+        f"✅ Loaded model from epoch {result['epoch']} "
+        f"(loss: {result['metrics'].get('val', {}).get('loss', 'N/A')})"
+    )
+
+    return result
+
+
+def resume_training(
+    model: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+    scheduler: Optional[torch.optim.lr_scheduler.LRScheduler],
+    experiment_path: Union[str, Path] = "latest",
+    model_name: Optional[str] = None,
+    degradation: Optional[str] = None,
+    device: str = "cpu",
+    checkpoint_name: str = "best_model.pth",
+) -> tuple[dict, int]:
+    """
+    Resume training from a previous checkpoint.
+    
+    This is a convenience wrapper around load_pretrained_model specifically for
+    resuming training. It automatically loads model, optimizer, and scheduler states
+    and returns the starting epoch for continuing training.
+
+    Args:
+        model: Model to load state into (required)
+        optimizer: Optimizer to load state into (required)
+        scheduler: Scheduler to load state into (optional but recommended)
+        experiment_path: Either:
+            - "latest" to load the most recent experiment (default)
+            - Relative path from experiments/[model_name]/[degradation]/ (e.g., "20251229_224726")
+            - Full path to experiment directory
+        model_name: Model name (e.g., 'unet', 'dncnn') - required if using relative path
+        degradation: Degradation type (e.g., 'gaussian', 'dithering') - required if using relative path
+        device: Device to map tensors to
+        checkpoint_name: Name of checkpoint file (default: 'best_model.pth')
+
+    Returns:
+        Tuple of (checkpoint_info, start_epoch) where:
+        - checkpoint_info: Dictionary containing epoch and metrics from checkpoint
+        - start_epoch: Epoch number to start training from (checkpoint epoch + 1)
+
+    Examples:
+        # Resume from most recent unet/gaussian experiment
+        >>> checkpoint_info, start_epoch = resume_training(
+        ...     model=model,
+        ...     optimizer=optimizer,
+        ...     scheduler=scheduler,
+        ...     experiment_path="latest",
+        ...     model_name="unet",
+        ...     degradation="gaussian"
+        ... )
+        >>> # Continue training from start_epoch
+        >>> for epoch in range(start_epoch, num_epochs):
+        ...     train_epoch(...)
+
+        # Resume from specific experiment
+        >>> checkpoint_info, start_epoch = resume_training(
+        ...     model=model,
+        ...     optimizer=optimizer,
+        ...     scheduler=scheduler,
+        ...     experiment_path="20251229_224726",
+        ...     model_name="unet",
+        ...     degradation="gaussian"
+        ... )
+
+    Raises:
+        FileNotFoundError: If the experiment or checkpoint file is not found
+        ValueError: If invalid arguments are provided
+    """
+    print("\n" + "=" * 80)
+    print("🔄 Resuming Training from Checkpoint")
+    print("=" * 80 + "\n")
+    
+    # Load checkpoint with optimizer and scheduler
+    checkpoint_info = load_pretrained_model(
+        model=model,
+        experiment_path=experiment_path,
+        model_name=model_name,
+        degradation=degradation,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        device=device,
+        checkpoint_name=checkpoint_name,
+    )
+    
+    # Calculate starting epoch for resuming
+    start_epoch = checkpoint_info["epoch"] + 1
+    
+    print(f"\n📈 Training will resume from epoch {start_epoch}")
+    print(f"📊 Previous best metrics: {checkpoint_info['metrics'].get('val', {})}")
+    print("=" * 80 + "\n")
+    
+    return checkpoint_info, start_epoch
+

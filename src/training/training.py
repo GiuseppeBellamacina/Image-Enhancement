@@ -45,7 +45,7 @@ def train_epoch(
     for batch_idx, (degraded, clean) in enumerate(pbar):
         output = None
         loss = None
-        
+
         try:
             degraded = degraded.to(device)
             clean = clean.to(device)
@@ -186,7 +186,7 @@ def validate(
     for batch_idx, (degraded, clean) in enumerate(pbar):
         output = None
         loss = None
-        
+
         try:
             degraded = degraded.to(device)
             clean = clean.to(device)

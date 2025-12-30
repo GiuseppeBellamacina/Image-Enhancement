@@ -3,6 +3,7 @@ Training and validation loop utilities
 """
 
 import torch
+from torch.amp.autocast_mode import autocast
 from tqdm.auto import tqdm
 
 
@@ -54,7 +55,7 @@ def train_epoch(
 
             # Forward pass with mixed precision if enabled
             if use_amp and scaler is not None:
-                with torch.cuda.amp.autocast():
+                with autocast(device_type=device):
                     output = model(degraded)
                     loss, metrics = criterion(output, clean)
 
@@ -193,7 +194,7 @@ def validate(
 
             # Forward pass with mixed precision if enabled
             if use_amp:
-                with torch.cuda.amp.autocast():
+                with autocast(device_type=device):
                     output = model(degraded)
                     loss, metrics = criterion(output, clean)
             else:

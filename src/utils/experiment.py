@@ -35,7 +35,7 @@ def setup_experiment(
     # Create experiment directory with timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     exp_name = f"{timestamp}_{custom_name}" if custom_name else timestamp
-    
+
     # Get base directory for this model/degradation combination
     base_dir = get_model_experiments_dir(model_name, degradation)
     exp_dir = base_dir / exp_name

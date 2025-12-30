@@ -31,6 +31,7 @@ def run_training(
     gradient_clip: float = 1.0,
     start_epoch: int = 0,
     initial_best_loss: float = float("inf"),
+    initial_history: Dict | None = None,
 ) -> Tuple[Dict, Dict]:
     """
     Run complete training loop with validation, checkpointing, and early stopping.
@@ -54,6 +55,7 @@ def run_training(
         gradient_clip: Maximum gradient norm for clipping
         start_epoch: Starting epoch (0 for new training, >0 for resumed training)
         initial_best_loss: Initial best validation loss (inf for new training)
+        initial_history: Previous training history to continue from (optional)
 
     Returns:
         Tuple of (history, best_info) where:
@@ -61,15 +63,23 @@ def run_training(
         - best_info: Dict with best epoch and validation loss
     """
     # Training history
-    history = {
-        "train_loss": [],
-        "train_l1": [],
-        "train_ssim": [],
-        "val_loss": [],
-        "val_l1": [],
-        "val_ssim": [],
-        "lr": [],
-    }
+    if initial_history is not None:
+        # Continue from previous history
+        history = initial_history
+        print(
+            f"📊 Continuing from previous history ({len(history['train_loss'])} epochs recorded)"
+        )
+    else:
+        # Start fresh history
+        history = {
+            "train_loss": [],
+            "train_l1": [],
+            "train_ssim": [],
+            "val_loss": [],
+            "val_l1": [],
+            "val_ssim": [],
+            "lr": [],
+        }
 
     # Best model tracking
     best_val_loss = initial_best_loss
@@ -78,17 +88,19 @@ def run_training(
 
     print("\n" + "=" * 80)
     if start_epoch > 0:
-        print(f"🔄 Resuming Training from Epoch {start_epoch + 1}")
+        print(f"🔄 Resuming Training from Epoch {start_epoch}")
+        print(f"   Will train epochs {start_epoch} to {num_epochs - 1}")
         print(f"   Previous best loss: {initial_best_loss:.4f}")
     else:
         print("🚀 Starting Training")
+        print(f"   Will train epochs 0 to {num_epochs - 1}")
     print("=" * 80 + "\n")
 
     try:
         for epoch in range(start_epoch, num_epochs):
 
-            # Learning rate warmup
-            if epoch < warmup_epochs:
+            # Learning rate warmup (only if not already completed in previous training)
+            if epoch < warmup_epochs and start_epoch < warmup_epochs:
                 lr = learning_rate * (epoch + 1) / warmup_epochs
                 for param_group in optimizer.param_groups:
                     param_group["lr"] = lr

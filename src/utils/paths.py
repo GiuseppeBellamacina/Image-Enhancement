@@ -67,11 +67,11 @@ def get_experiments_dir() -> Path:
 def get_model_experiments_dir(model_name: str, degradation: str) -> Path:
     """
     Get the experiment directory path for a specific model and degradation type.
-    
+
     Args:
         model_name: Name of the model (e.g., 'unet', 'dncnn')
         degradation: Type of degradation (e.g., 'gaussian', 'dithering')
-    
+
     Returns:
         Path to experiments/[model_name]/[degradation]/
     """

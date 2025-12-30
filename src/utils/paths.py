@@ -48,8 +48,8 @@ def get_project_path(*parts: str, from_root: bool = True) -> Path:
         >>> get_project_path('data', 'raw')
         PosixPath('/path/to/project/data/raw')
 
-        >>> get_project_path('experiments', 'results')
-        PosixPath('/path/to/project/experiments/results')
+        >>> get_project_path('experiments', 'unet', 'gaussian')
+        PosixPath('/path/to/project/experiments/unet/gaussian')
     """
     if from_root:
         root = find_project_root()
@@ -64,9 +64,18 @@ def get_experiments_dir() -> Path:
     return get_project_path("experiments")
 
 
-def get_results_dir() -> Path:
-    """Get the results directory path."""
-    return get_project_path("experiments", "results")
+def get_model_experiments_dir(model_name: str, degradation: str) -> Path:
+    """
+    Get the experiment directory path for a specific model and degradation type.
+    
+    Args:
+        model_name: Name of the model (e.g., 'unet', 'dncnn')
+        degradation: Type of degradation (e.g., 'gaussian', 'dithering')
+    
+    Returns:
+        Path to experiments/[model_name]/[degradation]/
+    """
+    return get_project_path("experiments", model_name, degradation)
 
 
 def get_raw_data_dir() -> Path:
@@ -77,3 +86,8 @@ def get_raw_data_dir() -> Path:
 def get_degraded_data_dir() -> Path:
     """Get the degraded data directory path."""
     return get_project_path("data", "degraded")
+
+
+def get_processed_data_dir() -> Path:
+    """Get the processed data directory path."""
+    return get_project_path("data", "processed")

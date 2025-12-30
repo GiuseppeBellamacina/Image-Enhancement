@@ -65,8 +65,8 @@ data/processed/*
 !data/processed/.gitkeep
 
 # Experiment Results
-experiments/results/*
-!experiments/results/.gitkeep
+experiments/*
+!experiments/.gitkeep
 *.log
 runs/
 wandb/

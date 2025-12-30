@@ -29,6 +29,7 @@ from .paths import (
     get_raw_data_dir,
     get_degraded_data_dir,
 )
+from .download_dataset import download_div2k_dataset
 
 __all__ = [
     # Checkpoint utilities
@@ -54,4 +55,6 @@ __all__ = [
     "get_model_experiments_dir",
     "get_raw_data_dir",
     "get_degraded_data_dir",
+    # Dataset utilities
+    "download_div2k_dataset",
 ]

@@ -271,7 +271,7 @@ def resume_training(
     degradation: Optional[str] = None,
     device: str = "cpu",
     checkpoint_name: str = "best_model.pth",
-) -> tuple[dict, int, dict, Path]:
+) -> tuple[dict, int, dict, Path, int]:
     """
     Resume training from a previous checkpoint.
 
@@ -293,15 +293,16 @@ def resume_training(
         checkpoint_name: Name of checkpoint file (default: 'best_model.pth')
 
     Returns:
-        Tuple of (checkpoint_info, start_epoch, history, exp_dir) where:
+        Tuple of (checkpoint_info, start_epoch, history, exp_dir, best_epoch) where:
         - checkpoint_info: Dictionary containing epoch and metrics from checkpoint
         - start_epoch: Epoch number to start training from (checkpoint epoch + 1)
         - history: Previous training history (empty dict if not found)
         - exp_dir: Path to the experiment directory
+        - best_epoch: Epoch number of the best model (from checkpoint)
 
     Examples:
         # Resume from most recent unet/gaussian experiment
-        >>> info, start_epoch, history, exp_dir = resume_training(
+        >>> info, start_epoch, history, exp_dir, best_epoch = resume_training(
         ...     model=model,
         ...     optimizer=optimizer,
         ...     scheduler=scheduler,
@@ -394,6 +395,7 @@ def resume_training(
     checkpoint_epoch = checkpoint_info["epoch"]
     start_epoch = checkpoint_epoch + 1
     best_val_loss = checkpoint_info["metrics"].get("val", {}).get("loss", float("inf"))
+    best_epoch = checkpoint_epoch  # Best epoch is the checkpoint epoch
 
     print(
         f"📦 Resuming from epoch {start_epoch} (checkpoint at epoch {checkpoint_epoch})"
@@ -402,4 +404,4 @@ def resume_training(
         print(f"   Best model val_loss: {best_val_loss:.4f}")
     print("=" * 80 + "\n")
 
-    return checkpoint_info, start_epoch, history, exp_dir
+    return checkpoint_info, start_epoch, history, exp_dir, best_epoch

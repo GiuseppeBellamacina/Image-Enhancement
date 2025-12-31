@@ -13,12 +13,12 @@ Questo progetto di gruppo ha l'obiettivo di studiare e confrontare diversi metod
 
 ## 🔍 Obiettivi del progetto
 
-- [x] Implementare diversi **tipi di corruzione** delle immagini (rumore, blur, JPEG, low-light, ecc.)
-- [x] Addestrare più **modelli di restauro** e enhancement: UNet, DnCNN, Autoencoder, GAN, Transformer
-- [x] Testare varie **loss functions** (L1, L2, SSIM, Perceptual Loss)
-- [x] Valutare la qualità ricostruita con metriche come **PSNR, SSIM, LPIPS**, e confronto visivo
-- [x] Svolgere **ablation study** per comprendere cosa migliora o peggiora le performance
-- [x] Redigere una **relazione finale** e presentazione del progetto
+- [ ] Implementare diversi **tipi di corruzione** delle immagini (rumore, blur, JPEG, low-light, ecc.)
+- [ ] Addestrare più **modelli di restauro** e enhancement: UNet, DnCNN, Autoencoder, GAN, Transformer
+- [ ] Testare varie **loss functions** (L1, L2, SSIM, Perceptual Loss)
+- [ ] Valutare la qualità ricostruita con metriche come **PSNR, SSIM, LPIPS**, e confronto visivo
+- [ ] Svolgere **ablation study** per comprendere cosa migliora o peggiora le performance
+- [ ] Redigere una **relazione finale** e presentazione del progetto
 
 ---
 
@@ -75,8 +75,8 @@ Saranno implementati diversi metodi di corruzione parametrizzabili:
 
 - **Denoising Autoencoder** -> Mattia
 - **UNet** (standard) -> Giuseppe
-- **Residual UNet** (con skip connections)
-- **DnCNN** (Denoising CNN) -> Francesco
+- **Residual UNet** (con skip connections) -> Giuseppe
+- **DnCNN** (Denoising CNN) -> Salvo
 - **Attention UNet** (opzionale)
 
 ### GAN-based

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Experiment setup utilities for managing output directories and configurations
 """
@@ -53,11 +54,11 @@ def setup_experiment(
             subdir.mkdir(exist_ok=True)
 
     # Save configuration
-    with open(exp_dir / "config.json", "w") as f:
+    with open(exp_dir / "config.json", "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2)
 
     # Print summary
-    print(f"\n\ud83d\udcc1 Experiment: {exp_name}")
+    print(f"\n📁 Experiment: {exp_name}")
 
     return exp_dir, subdirs
 
@@ -399,7 +400,7 @@ def fork_experiment(
         print("⚠️  No experiment_stats.json found in parent (starting fresh)")
 
     # Save new config
-    with open(exp_dir / "config.json", "w") as f:
+    with open(exp_dir / "config.json", "w", encoding="utf-8") as f:
         json.dump(new_config, f, indent=2)
 
     # Save fork metadata
@@ -414,7 +415,7 @@ def fork_experiment(
         },
     }
 
-    with open(exp_dir / "fork_metadata.json", "w") as f:
+    with open(exp_dir / "fork_metadata.json", "w", encoding="utf-8") as f:
         json.dump(fork_metadata, f, indent=2)
 
     print(f"\n\u2705 Forked to: {exp_name}")
@@ -436,7 +437,7 @@ def save_training_history(history: dict, exp_dir: Path) -> Path:
     """
     history_path = exp_dir / "history.json"
 
-    with open(history_path, "w") as f:
+    with open(history_path, "w", encoding="utf-8") as f:
         json.dump(history, f, indent=2)
 
     return history_path
@@ -497,7 +498,7 @@ def save_experiment_stats(
         "avg_inference_time_seconds": round(avg_inference_time, 2),
     }
 
-    with open(stats_path, "w") as f:
+    with open(stats_path, "w", encoding="utf-8") as f:
         json.dump(stats, f, indent=2)
 
     return stats_path

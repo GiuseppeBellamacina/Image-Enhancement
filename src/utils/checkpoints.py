@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Checkpoint utilities for saving and loading model states
 """

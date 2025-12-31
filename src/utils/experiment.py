@@ -389,6 +389,15 @@ def fork_experiment(
     else:
         print("⚠️  No history.json found in parent (starting with empty history)")
 
+    # Copy experiment stats from parent if they exist (cumulative stats)
+    parent_stats = parent_exp_dir / "experiment_stats.json"
+    if parent_stats.exists():
+        new_stats = exp_dir / "experiment_stats.json"
+        shutil.copy2(parent_stats, new_stats)
+        print(f"✅ Copied experiment stats from parent (cumulative)")
+    else:
+        print("⚠️  No experiment_stats.json found in parent (starting fresh)")
+
     # Save new config
     with open(exp_dir / "config.json", "w") as f:
         json.dump(new_config, f, indent=2)
@@ -454,6 +463,74 @@ def load_training_history(exp_dir: Path) -> dict:
     return history
 
 
+def save_experiment_stats(
+    exp_dir: Path,
+    total_training_time: float,
+    total_epochs_trained: int,
+    peak_memory_mb: float,
+    avg_epoch_time: float,
+    avg_inference_time: float,
+) -> Path:
+    """
+    Save cumulative experiment statistics to experiment directory.
+    These stats are preserved and accumulated when forking experiments.
+
+    Args:
+        exp_dir: Path to the experiment directory
+        total_training_time: Total training time in seconds (cumulative)
+        total_epochs_trained: Total number of epochs trained (cumulative)
+        peak_memory_mb: Peak memory allocated in MB
+        avg_epoch_time: Average time per epoch in seconds
+        avg_inference_time: Average inference time in seconds
+
+    Returns:
+        Path to the saved stats file
+    """
+    stats_path = exp_dir / "experiment_stats.json"
+
+    stats = {
+        "total_training_time_seconds": round(total_training_time, 2),
+        "total_training_time_hours": round(total_training_time / 3600, 2),
+        "total_epochs_trained": total_epochs_trained,
+        "peak_memory_allocated_mb": round(peak_memory_mb, 2),
+        "avg_epoch_time_seconds": round(avg_epoch_time, 2),
+        "avg_inference_time_seconds": round(avg_inference_time, 2),
+    }
+
+    with open(stats_path, "w") as f:
+        json.dump(stats, f, indent=2)
+
+    return stats_path
+
+
+def load_experiment_stats(exp_dir: Path) -> dict:
+    """
+    Load experiment statistics from an experiment directory.
+
+    Args:
+        exp_dir: Path to the experiment directory
+
+    Returns:
+        Stats dictionary with cumulative metrics (empty dict if not found)
+    """
+    stats_path = exp_dir / "experiment_stats.json"
+
+    if not stats_path.exists():
+        return {
+            "total_training_time_seconds": 0.0,
+            "total_training_time_hours": 0.0,
+            "total_epochs_trained": 0,
+            "peak_memory_allocated_mb": 0.0,
+            "avg_epoch_time_seconds": 0.0,
+            "avg_inference_time_seconds": 0.0,
+        }
+
+    with open(stats_path, "r") as f:
+        stats = json.load(f)
+
+    return stats
+
+
 def print_training_summary(
     history: dict,
     best_epoch: int,
@@ -509,6 +586,19 @@ def print_training_summary(
         print(f"  Loss: {history['train_loss'][-1]:.4f}")
         print(f"  L1: {history['train_l1'][-1]:.4f}")
         print(f"  SSIM: {history['train_ssim'][-1]:.4f}")
+
+    # Print timing and memory statistics
+    stats = load_experiment_stats(exp_dir)
+    if stats.get("total_training_time_seconds", 0) > 0:
+        print("\nPerformance Statistics:")
+        print(f"  Total training time: {stats['total_training_time_hours']:.2f}h ({stats['total_training_time_seconds']:.0f}s)")
+        print(f"  Total epochs trained: {stats['total_epochs_trained']}")
+        if stats.get("avg_epoch_time_seconds", 0) > 0:
+            print(f"  Avg epoch time: {stats['avg_epoch_time_seconds']:.1f}s")
+        if stats.get("avg_inference_time_seconds", 0) > 0:
+            print(f"  Avg inference time: {stats['avg_inference_time_seconds']:.1f}s")
+        if stats.get("peak_memory_allocated_mb", 0) > 0:
+            print(f"  Peak memory: {stats['peak_memory_allocated_mb']:.0f}MB")
 
     print("\nSaved files:")
     print(f"  Best model: {checkpoints_dir / 'best_model.pth'}")

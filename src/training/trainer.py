@@ -32,6 +32,7 @@ def run_training(
     gradient_clip: float = 1.0,
     start_epoch: int = 0,
     initial_best_loss: float = float("inf"),
+    initial_best_epoch: int = 0,
     initial_history: Dict | None = None,
     use_amp: bool = False,
 ) -> Tuple[Dict, Dict]:
@@ -115,7 +116,7 @@ def run_training(
 
     # Best model tracking
     best_val_loss = initial_best_loss
-    best_epoch = start_epoch if start_epoch > 0 else 1
+    best_epoch = initial_best_epoch if initial_best_epoch > 0 else 0
     patience_counter = 0
 
     print("\n" + "=" * 80)
@@ -256,7 +257,6 @@ def run_training(
             print("-" * 80)
 
     except KeyboardInterrupt:
-        print("\n⚠️  Training interrupted by user!")
         training_interrupted = True
     except (torch.cuda.OutOfMemoryError, RuntimeError) as e:
         # Check if it's an OOM error
@@ -333,10 +333,13 @@ def run_training(
         completed_epochs = len(history["train_loss"])
         print("\n" + "=" * 80)
         print("⚠️  Training Interrupted")
+        if best_epoch > 0:
+            print(
+                f"   Best model: epoch {best_epoch} (val_loss: {best_val_loss:.4f})"
+            )
         print(
-            f"   Best model saved: epoch {best_epoch} (val_loss: {best_val_loss:.4f})"
+            f"   History contains {completed_epochs} validation point{'s' if completed_epochs != 1 else ''}"
         )
-        print(f"   Validation points saved: {completed_epochs}")
         print("=" * 80 + "\n")
 
     # Return history and best model info

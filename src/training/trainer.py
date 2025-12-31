@@ -111,7 +111,6 @@ def run_training(
         scaler = torch.amp.grad_scaler.GradScaler()
         print("⚡ Mixed Precision Training: ENABLED (fp16)")
     elif use_amp and device == "cpu":
-        print("⚠️  Mixed precision requested but not available on CPU")
         use_amp = False
 
     # Best model tracking
@@ -126,7 +125,7 @@ def run_training(
         print(f"   Previous best loss: {initial_best_loss:.4f}")
     else:
         print("🚀 Starting Training")
-        print(f"   Will train epochs 1 to {num_epochs}")
+        print(f"   Epochs: 1 to {num_epochs}")
     print("=" * 80 + "\n")
 
     # Track if training completed successfully
@@ -168,18 +167,7 @@ def run_training(
 
             current_lr = optimizer.param_groups[0]["lr"]
 
-            # Save metrics
-            history["train_loss"].append(train_metrics["loss"])
-            history["train_l1"].append(train_metrics["l1"])
-            history["train_ssim"].append(train_metrics["ssim"])
-            history["lr"].append(current_lr)
-
-            if val_metrics:
-                history["val_loss"].append(val_metrics["loss"])
-                history["val_l1"].append(val_metrics["l1"])
-                history["val_ssim"].append(val_metrics["ssim"])
-
-            # Log to TensorBoard
+            # Log to TensorBoard (always log, even if not saving to history)
             writer.add_scalar("Loss/train", train_metrics["loss"], epoch)
             writer.add_scalar("L1/train", train_metrics["l1"], epoch)
             writer.add_scalar("SSIM/train", train_metrics["ssim"], epoch)
@@ -201,12 +189,26 @@ def run_training(
                 )
             print(f"  LR: {current_lr:.6f}")
 
-            # Save checkpoint
+            # Update history only when we validate (to keep history synchronized with validation)
+            if val_metrics:
+                history["train_loss"].append(train_metrics["loss"])
+                history["train_l1"].append(train_metrics["l1"])
+                history["train_ssim"].append(train_metrics["ssim"])
+                history["lr"].append(current_lr)
+                history["val_loss"].append(val_metrics["loss"])
+                history["val_l1"].append(val_metrics["l1"])
+                history["val_ssim"].append(val_metrics["ssim"])
+
+                # Save history after every validation (will be truncated at resume based on checkpoint)
+                save_training_history(history, checkpoints_dir.parent)
+
+            # Save checkpoint when validation improves
             if val_metrics and val_metrics["loss"] < best_val_loss:
                 best_val_loss = val_metrics["loss"]
                 best_epoch = epoch
                 patience_counter = 0
 
+                # Save best model checkpoint
                 save_checkpoint(
                     model,
                     optimizer,
@@ -214,9 +216,15 @@ def run_training(
                     epoch,
                     {"train": train_metrics, "val": val_metrics},
                     checkpoints_dir / "best_model.pth",
+                    metadata={
+                        "total_epochs_completed": len(history["train_loss"]),
+                        "best_epoch": epoch,
+                    },
                 )
+
                 print(f"  ✅ Best model saved! (val_loss: {best_val_loss:.4f})")
-            else:
+            elif val_metrics:
+                # Only increment patience if we actually validated and didn't improve
                 patience_counter += 1
 
             # Periodic checkpoint
@@ -232,6 +240,9 @@ def run_training(
                         else {"train": train_metrics}
                     ),
                     checkpoints_dir / f"checkpoint_epoch_{epoch:03d}.pth",
+                    metadata={
+                        "total_epochs_completed": len(history["train_loss"]),
+                    },
                 )
                 print(f"  💾 Checkpoint saved (epoch {epoch})")
 
@@ -241,9 +252,6 @@ def run_training(
                     f"\n⚠️  Early stopping triggered! No improvement for {patience} epochs."
                 )
                 break
-
-            # Save history after each epoch
-            save_training_history(history, checkpoints_dir.parent)
 
             print("-" * 80)
 
@@ -294,35 +302,8 @@ def run_training(
 
             # Clear CUDA cache
             if device == "cuda":
-                print("🧹 Clearing CUDA cache...")
                 torch.cuda.empty_cache()
                 torch.cuda.synchronize()
-                print("✅ CUDA cache cleared")
-
-            print("\n" + "=" * 80)
-            print("🔧 HOW TO RECOVER:")
-            print("=" * 80)
-            print("\n📌 IF NOTEBOOK IS STILL OPEN:")
-            print("   1. Modify Cell Configuration:")
-            print("      config['batch_size'] = 4  # Reduce (was 8)")
-            print("      config['resume_from_checkpoint'] = True")
-            print("   2. Re-run ONLY Cell Configuration")
-            print("   3. Re-run ONLY Cell Training Loop")
-            print(
-                "   ⚠️  DO NOT re-run Cell Experiment Setup - it would create a new experiment!"
-            )
-            print("\n📕 IF NOTEBOOK WAS CLOSED:")
-            print("   1. Modify Cell Configuration:")
-            print("      config['batch_size'] = 4  # Reduce")
-            print("      config['resume_from_checkpoint'] = True")
-            print("      config['resume_experiment'] = 'latest'")
-            print("   2. Re-run all cells from the beginning")
-            print("   ✅ It will automatically load the previous experiment")
-            print("\n💡 MEMORY REDUCTION OPTIONS:")
-            print("   • batch_size: 8 → 4 → 2 → 1")
-            print("\n📁 Checkpoints saved in:")
-            print(f"   {checkpoints_dir}")
-            print("=" * 80 + "\n")
 
             training_interrupted = True
             # Don't re-raise, allow graceful shutdown
@@ -336,32 +317,26 @@ def run_training(
         training_interrupted = True
         raise
     finally:
-        # Always save history and close writer, even if interrupted
-        print("\n💾 Saving final state...")
-        try:
-            save_training_history(history, checkpoints_dir.parent)
-            print("✅ Training history saved")
-        except Exception as e:
-            print(f"⚠️  Failed to save history: {e}")
-
+        # Always close writer, even if interrupted
         try:
             writer.close()
-            print("✅ TensorBoard writer closed")
         except Exception as e:
             print(f"⚠️  Failed to close writer: {e}")
 
     if not training_interrupted:
         print("\n" + "=" * 80)
         print("✅ Training Completed!")
-        print(f"   Best validation loss: {best_val_loss:.4f} at epoch {best_epoch}")
+        print(f"   Best model: epoch {best_epoch} with val_loss {best_val_loss:.4f}")
+        print(f"   Validation points saved: {len(history['train_loss'])}")
         print("=" * 80 + "\n")
     else:
+        completed_epochs = len(history["train_loss"])
         print("\n" + "=" * 80)
         print("⚠️  Training Interrupted")
         print(
-            f"   Best validation loss so far: {best_val_loss:.4f} at epoch {best_epoch}"
+            f"   Best model saved: epoch {best_epoch} (val_loss: {best_val_loss:.4f})"
         )
-        print(f"   Completed epochs: {len(history['train_loss'])}")
+        print(f"   Validation points saved: {completed_epochs}")
         print("=" * 80 + "\n")
 
     # Return history and best model info

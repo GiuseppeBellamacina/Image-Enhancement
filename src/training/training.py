@@ -233,13 +233,6 @@ def validate(
                 if loss is not None:
                     del loss
 
-                print(
-                    "\n⚠️  OOM during validation - typically means batch_size is too large"
-                )
-                print(
-                    "   Even though validation uses less memory, try reducing batch_size."
-                )
-
                 # Re-raise to be caught by run_training
                 raise torch.cuda.OutOfMemoryError(
                     f"CUDA OOM during validation at batch {batch_idx + 1}. Reduce batch_size."

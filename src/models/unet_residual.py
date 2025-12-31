@@ -86,12 +86,12 @@ class OutConv(nn.Module):
 class UNetResidual(nn.Module):
     """
     Residual UNet for Image Denoising
-    
+
     Instead of predicting the clean image directly, this network predicts
     the noise/residual and subtracts it from the input. This approach is
     more effective for denoising tasks as the network learns to identify
     and remove noise patterns.
-    
+
     Forward pass: output = input - predicted_noise
 
     Args:
@@ -132,10 +132,10 @@ class UNetResidual(nn.Module):
     def forward(self, x):
         """
         Forward pass with residual learning
-        
+
         Args:
             x: Input noisy image [B, C, H, W]
-            
+
         Returns:
             Denoised image [B, C, H, W] = input - predicted_noise
         """

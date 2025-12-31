@@ -17,7 +17,11 @@ from .visualization import (
 )
 from .experiment import (
     setup_experiment,
+    load_existing_experiment,
+    setup_or_resume_experiment,
     load_experiment_config,
+    compare_configs,
+    fork_experiment,
     save_training_history,
     load_training_history,
     print_training_summary,
@@ -46,7 +50,11 @@ __all__ = [
     "plot_training_curves",
     # Experiment utilities
     "setup_experiment",
+    "load_existing_experiment",
+    "setup_or_resume_experiment",
     "load_experiment_config",
+    "compare_configs",
+    "fork_experiment",
     "save_training_history",
     "load_training_history",
     "print_training_summary",

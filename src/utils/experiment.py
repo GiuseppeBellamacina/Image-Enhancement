@@ -3,9 +3,10 @@ Experiment setup utilities for managing output directories and configurations
 """
 
 import json
+import shutil
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, Set
 
 from .paths import get_model_experiments_dir
 
@@ -56,13 +57,188 @@ def setup_experiment(
         json.dump(config, f, indent=2)
 
     # Print summary
-    print(f"\n📁 Experiment directory: {exp_dir}")
-    if create_subdirs:
-        print(f"   Checkpoints: {subdirs['checkpoints']}")
-        print(f"   Samples: {subdirs['samples']}")
-        print(f"   Logs: {subdirs['logs']}")
+    print(f"\n\ud83d\udcc1 Experiment: {exp_name}")
 
     return exp_dir, subdirs
+
+
+def load_existing_experiment(
+    model_name: str,
+    degradation: str,
+    resume_experiment: str = "latest",
+) -> Tuple[Path, Path, Path, Path]:
+    """
+    Load an existing experiment directory and its subdirectories.
+
+    Args:
+        model_name: Name of the model (e.g., 'unet', 'dncnn')
+        degradation: Type of degradation (e.g., 'gaussian', 'dithering')
+        resume_experiment: Which experiment to load ('latest' or timestamp)
+
+    Returns:
+        Tuple of (exp_dir, checkpoints_dir, samples_dir, logs_dir)
+
+    Raises:
+        FileNotFoundError: If no experiments found or specified experiment doesn't exist
+    """
+    print("\n" + "=" * 80)
+    print("🔄 RESUME MODE: Loading existing experiment")
+    print("=" * 80 + "\n")
+
+    base_dir = get_model_experiments_dir(model_name, degradation)
+
+    if resume_experiment == "latest":
+        # Find most recent experiment
+        experiment_dirs = sorted(
+            [d for d in base_dir.iterdir() if d.is_dir()],
+            key=lambda x: x.name,
+            reverse=True,
+        )
+        if not experiment_dirs:
+            raise FileNotFoundError(f"No experiments found in {base_dir}")
+        exp_dir = experiment_dirs[0]
+    else:
+        # Use specified experiment
+        exp_dir = base_dir / resume_experiment
+        if not exp_dir.exists():
+            raise FileNotFoundError(f"Experiment not found: {exp_dir}")
+
+    print(f"📁 Experiment: {exp_dir.name}")
+
+    # Set subdirectory paths
+    checkpoints_dir = exp_dir / "checkpoints"
+    samples_dir = exp_dir / "samples"
+    logs_dir = exp_dir / "logs"
+
+    # Verify directories exist, create if missing
+    for dir_path in [checkpoints_dir, samples_dir, logs_dir]:
+        if not dir_path.exists():
+            dir_path.mkdir(parents=True, exist_ok=True)
+
+    print("=" * 80 + "\n")
+
+    return exp_dir, checkpoints_dir, samples_dir, logs_dir
+
+
+def setup_or_resume_experiment(
+    model_name: str,
+    degradation: str,
+    config: dict,
+    resume_from_checkpoint: bool = False,
+    resume_experiment: str = "latest",
+    custom_name: Optional[str] = None,
+    auto_fork_on_config_change: bool = True,
+) -> Tuple[Path, Path, Path, Path]:
+    """
+    Setup a new experiment or resume an existing one based on configuration.
+
+    This function intelligently handles config changes during resume:
+    - If config matches the saved one, resumes normally
+    - If config changed and auto_fork_on_config_change=True, creates a forked experiment
+    - If config changed and auto_fork_on_config_change=False, raises an error
+
+    Args:
+        model_name: Name of the model (e.g., 'unet', 'dncnn')
+        degradation: Type of degradation (e.g., 'gaussian', 'dithering/random')
+        config: Configuration dictionary to save (only used for new experiments)
+        resume_from_checkpoint: Whether to resume from existing experiment
+        resume_experiment: Which experiment to resume ('latest' or timestamp)
+        custom_name: Custom name suffix for new experiments
+        auto_fork_on_config_change: If True, automatically fork on config changes
+
+    Returns:
+        Tuple of (exp_dir, checkpoints_dir, samples_dir, logs_dir)
+
+    Raises:
+        ValueError: If config changed and auto_fork_on_config_change=False
+
+    Examples:
+        # Fresh training
+        >>> exp_dir, ckpt_dir, samples_dir, logs_dir = setup_or_resume_experiment(
+        ...     model_name="unet",
+        ...     degradation="gaussian",
+        ...     config=config,
+        ...     resume_from_checkpoint=False,
+        ...     custom_name="v1"
+        ... )
+
+        # Resume training (auto-fork if config changed)
+        >>> exp_dir, ckpt_dir, samples_dir, logs_dir = setup_or_resume_experiment(
+        ...     model_name="unet",
+        ...     degradation="gaussian",
+        ...     config=config,
+        ...     resume_from_checkpoint=True,
+        ...     resume_experiment="latest"
+        ... )
+    """
+    if resume_from_checkpoint:
+        # Load existing experiment directory
+        parent_exp_dir, checkpoints_dir, samples_dir, logs_dir = (
+            load_existing_experiment(
+                model_name=model_name,
+                degradation=degradation,
+                resume_experiment=resume_experiment,
+            )
+        )
+
+        # Load saved config and compare with current config
+        try:
+            saved_config = load_experiment_config(parent_exp_dir)
+            has_changes, config_changes = compare_configs(saved_config, config)
+
+            if has_changes:
+                if auto_fork_on_config_change:
+                    # Fork experiment with new config
+                    exp_dir, subdirs = fork_experiment(
+                        parent_exp_dir=parent_exp_dir,
+                        model_name=model_name,
+                        degradation=degradation,
+                        new_config=config,
+                        config_changes=config_changes,
+                        custom_name=custom_name,
+                        copy_checkpoint="best_model.pth",
+                    )
+
+                    # Extract subdirectory paths
+                    checkpoints_dir = subdirs["checkpoints"]
+                    samples_dir = subdirs["samples"]
+                    logs_dir = subdirs["logs"]
+                else:
+                    # Raise error if auto-fork is disabled
+                    changes_str = "\n".join(
+                        f"  • {key}: {old} → {new}"
+                        for key, (old, new) in config_changes.items()
+                    )
+                    raise ValueError(
+                        f"Configuration has changed but auto_fork_on_config_change=False:\n"
+                        f"{changes_str}\n\n"
+                        f"Either:\n"
+                        f"1. Set auto_fork_on_config_change=True to fork automatically\n"
+                        f"2. Use the original config to resume without changes\n"
+                        f"3. Set resume_from_checkpoint=False to create a new experiment"
+                    )
+            else:
+                # No changes, use existing experiment
+                exp_dir = parent_exp_dir
+
+        except FileNotFoundError:
+            # No config.json found in parent (old experiment), use as-is
+            exp_dir = parent_exp_dir
+    else:
+        # New training: Create new experiment directory
+        exp_dir, subdirs = setup_experiment(
+            model_name=model_name,
+            degradation=degradation,
+            config=config,
+            custom_name=custom_name,
+        )
+
+        # Extract subdirectory paths
+        checkpoints_dir = subdirs["checkpoints"]
+        samples_dir = subdirs["samples"]
+        logs_dir = subdirs["logs"]
+
+    return exp_dir, checkpoints_dir, samples_dir, logs_dir
 
 
 def load_experiment_config(exp_dir: Path) -> dict:
@@ -84,6 +260,158 @@ def load_experiment_config(exp_dir: Path) -> dict:
         config = json.load(f)
 
     return config
+
+
+def compare_configs(
+    old_config: dict,
+    new_config: dict,
+    ignore_keys: Optional[Set[str]] = None,
+) -> Tuple[bool, Dict[str, Tuple]]:
+    """
+    Compare two configuration dictionaries and find significant differences.
+
+    Args:
+        old_config: Original configuration
+        new_config: New configuration to compare
+        ignore_keys: Set of keys to ignore in comparison (e.g., resume flags)
+
+    Returns:
+        Tuple of (has_changes, changes_dict) where:
+        - has_changes: Boolean indicating if there are differences
+        - changes_dict: Dict mapping changed keys to (old_value, new_value) tuples
+    """
+    if ignore_keys is None:
+        # Default keys to ignore (related to resume logic, not training)
+        ignore_keys = {
+            "resume_from_checkpoint",
+            "resume_experiment",
+            "device",  # Device can change between runs
+        }
+
+    changes = {}
+
+    # Check all keys in new config
+    for key, new_value in new_config.items():
+        if key in ignore_keys:
+            continue
+
+        old_value = old_config.get(key)
+
+        # Check if value changed
+        if old_value != new_value:
+            changes[key] = (old_value, new_value)
+
+    # Check for removed keys (existed in old but not in new)
+    for key in old_config:
+        if key in ignore_keys:
+            continue
+        if key not in new_config:
+            changes[key] = (old_config[key], None)
+
+    return len(changes) > 0, changes
+
+
+def fork_experiment(
+    parent_exp_dir: Path,
+    model_name: str,
+    degradation: str,
+    new_config: dict,
+    config_changes: Dict[str, Tuple],
+    custom_name: Optional[str] = None,
+    copy_checkpoint: str = "best_model.pth",
+) -> Tuple[Path, Dict[str, Path]]:
+    """
+    Create a new forked experiment from an existing one with modified config.
+
+    This creates a new experiment directory, copies the checkpoint from the parent,
+    and saves metadata about the fork (parent experiment, config changes).
+
+    Args:
+        parent_exp_dir: Path to the parent experiment directory
+        model_name: Name of the model
+        degradation: Type of degradation
+        new_config: New configuration for the forked experiment
+        config_changes: Dictionary of config changes from compare_configs
+        custom_name: Optional custom name suffix
+        copy_checkpoint: Name of checkpoint to copy from parent
+
+    Returns:
+        Tuple of (exp_dir, subdirs) for the new forked experiment
+
+    Raises:
+        FileNotFoundError: If parent checkpoint doesn't exist
+    """
+    print("\n" + "=" * 80)
+    print("🍴 CONFIG CHANGED: Forking experiment")
+    print("=" * 80 + "\n")
+
+    print(f"Parent: {parent_exp_dir.name}")
+    print(f"Changes: {len(config_changes)} parameter(s) modified\n")
+
+    # Create new experiment with fork suffix
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    fork_suffix = f"fork_{custom_name}" if custom_name else "fork"
+    exp_name = f"{timestamp}_{fork_suffix}"
+
+    base_dir = get_model_experiments_dir(model_name, degradation)
+    exp_dir = base_dir / exp_name
+    exp_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create subdirectories
+    subdirs = {
+        "checkpoints": exp_dir / "checkpoints",
+        "samples": exp_dir / "samples",
+        "logs": exp_dir / "logs",
+    }
+    for subdir in subdirs.values():
+        subdir.mkdir(exist_ok=True)
+
+    # Copy checkpoint from parent
+    parent_checkpoint = parent_exp_dir / "checkpoints" / copy_checkpoint
+    if not parent_checkpoint.exists():
+        raise FileNotFoundError(
+            f"Parent checkpoint not found: {parent_checkpoint}\n"
+            f"Cannot fork experiment without a checkpoint to copy."
+        )
+
+    new_checkpoint = subdirs["checkpoints"] / copy_checkpoint
+    shutil.copy2(parent_checkpoint, new_checkpoint)
+    print(f"\n✅ Copied checkpoint: {copy_checkpoint}")
+
+    # Copy training history from parent if it exists
+    parent_history = parent_exp_dir / "history.json"
+    if parent_history.exists():
+        new_history = exp_dir / "history.json"
+        shutil.copy2(parent_history, new_history)
+        print(
+            f"✅ Copied training history from parent ({parent_history.stat().st_size} bytes)"
+        )
+    else:
+        print("⚠️  No history.json found in parent (starting with empty history)")
+
+    # Save new config
+    with open(exp_dir / "config.json", "w") as f:
+        json.dump(new_config, f, indent=2)
+
+    # Save fork metadata
+    fork_metadata = {
+        "parent_experiment": str(parent_exp_dir.relative_to(base_dir.parent)),
+        "parent_timestamp": parent_exp_dir.name,
+        "fork_timestamp": timestamp,
+        "copied_checkpoint": copy_checkpoint,
+        "config_changes": {
+            key: {"old": old_val, "new": new_val}
+            for key, (old_val, new_val) in config_changes.items()
+        },
+    }
+
+    with open(exp_dir / "fork_metadata.json", "w") as f:
+        json.dump(fork_metadata, f, indent=2)
+
+    print(f"\n\u2705 Forked to: {exp_name}")
+    print("=" * 80 + "\n")
+
+    return exp_dir, subdirs
 
 
 def save_training_history(history: dict, exp_dir: Path) -> Path:
@@ -140,7 +468,7 @@ def print_training_summary(
 
     Args:
         history: Dictionary with training metrics history
-        best_epoch: Index of the best epoch (0-based)
+        best_epoch: Epoch number (1-based) of the best model
         best_val_loss: Best validation loss achieved
         exp_dir: Path to the experiment directory
         checkpoints_dir: Path to checkpoints directory
@@ -151,22 +479,43 @@ def print_training_summary(
     print("📊 TRAINING SUMMARY")
     print("=" * 80)
     print(f"\nExperiment directory: {exp_dir}")
-    print(f"\nTraining completed: {len(history['train_loss'])} epochs")
-    print(f"Best epoch: {best_epoch + 1}")
-    print("\nBest Validation Metrics:")
-    print(f"  Loss: {best_val_loss:.4f}")
-    print(f"  L1: {history['val_l1'][best_epoch]:.4f}")
-    print(f"  SSIM: {history['val_ssim'][best_epoch]:.4f}")
-    print("\nFinal Training Metrics:")
-    print(f"  Loss: {history['train_loss'][-1]:.4f}")
-    print(f"  L1: {history['train_l1'][-1]:.4f}")
-    print(f"  SSIM: {history['train_ssim'][-1]:.4f}")
+
+    # Handle empty history
+    if not history.get("train_loss"):
+        print("\n⚠️  No training history available")
+        print("=" * 80)
+        return
+
+    print(f"\nValidation points saved: {len(history['train_loss'])}")
+    print(f"Best epoch: {best_epoch}")
+
+    # Find the index of best validation loss in history
+    # Cannot use best_epoch - 1 because with val_every > 1, history indices don't match epoch numbers
+    if history.get("val_loss") and len(history["val_loss"]) > 0:
+        best_idx = history["val_loss"].index(min(history["val_loss"]))
+    else:
+        best_idx = 0
+
+    # Check if we have validation metrics
+    if history.get("val_loss") and len(history["val_loss"]) > best_idx:
+        print("\nBest Validation Metrics:")
+        print(f"  Loss: {best_val_loss:.4f}")
+        print(f"  L1: {history['val_l1'][best_idx]:.4f}")
+        print(f"  SSIM: {history['val_ssim'][best_idx]:.4f}")
+
+    # Check if we have training metrics
+    if history.get("train_loss") and len(history["train_loss"]) > 0:
+        print("\nFinal Training Metrics:")
+        print(f"  Loss: {history['train_loss'][-1]:.4f}")
+        print(f"  L1: {history['train_l1'][-1]:.4f}")
+        print(f"  SSIM: {history['train_ssim'][-1]:.4f}")
+
     print("\nSaved files:")
-    print(f"  ✓ Best model: {checkpoints_dir / 'best_model.pth'}")
-    print(f"  ✓ Training history: {exp_dir / 'history.json'}")
-    print(f"  ✓ Training curves: {exp_dir / 'training_curves.png'}")
-    print(f"  ✓ Inference samples: {samples_dir / 'inference_results.png'}")
-    print(f"  ✓ TensorBoard logs: {logs_dir}")
+    print(f"  Best model: {checkpoints_dir / 'best_model.pth'}")
+    print(f"  Training history: {exp_dir / 'history.json'}")
+    print(f"  Training curves: {exp_dir / 'training_curves.png'}")
+    print(f"  Inference samples: {samples_dir / 'inference_results.png'}")
+    print(f"  TensorBoard logs: {logs_dir}")
     print("\n" + "=" * 80)
     print("🎉 All done!")
     print("=" * 80)

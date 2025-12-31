@@ -15,6 +15,7 @@ def save_checkpoint(
     epoch: int,
     metrics: dict,
     filepath: Path,
+    metadata: Optional[dict] = None,
 ) -> None:
     """
     Save a training checkpoint.
@@ -23,16 +24,18 @@ def save_checkpoint(
         model: PyTorch model to save
         optimizer: Optimizer state to save
         scheduler: Learning rate scheduler state (optional)
-        epoch: Current epoch number
+        epoch: Current epoch number (the epoch that was just completed)
         metrics: Dictionary of metrics to save
         filepath: Path where to save the checkpoint
+        metadata: Optional dictionary with additional metadata (e.g., total_epochs_trained)
     """
     checkpoint = {
-        "epoch": epoch,
+        "epoch": epoch,  # The epoch that was just completed when this model was saved
         "model_state_dict": model.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
         "scheduler_state_dict": scheduler.state_dict() if scheduler else None,
         "metrics": metrics,
+        "metadata": metadata or {},
     }
 
     # Create parent directory if needed
@@ -75,7 +78,11 @@ def load_checkpoint(
     if scheduler is not None and checkpoint.get("scheduler_state_dict") is not None:
         scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
 
-    return {"epoch": checkpoint["epoch"], "metrics": checkpoint.get("metrics", {})}
+    return {
+        "epoch": checkpoint["epoch"],
+        "metrics": checkpoint.get("metrics", {}),
+        "metadata": checkpoint.get("metadata", {}),
+    }
 
 
 def ensure_best_model_exists(
@@ -132,7 +139,7 @@ def ensure_best_model_exists(
         shutil.copy2(source_checkpoint, best_model_path)
         print(f"   ✅ Successfully created {checkpoint_name}")
         print(
-            f"   ⚠️  Note: This may not be the actual best model, just the most recent checkpoint"
+            "   ⚠️  Note: This may not be the actual best model, just the most recent checkpoint"
         )
         return True
     except Exception as e:
@@ -215,7 +222,7 @@ def load_pretrained_model(
                     f"No experiments found for {model_name}/{degradation} at {base_dir}"
                 )
 
-            exp_dir = experiment_dirs[1]  # 1 to skip the current experiment
+            exp_dir = experiment_dirs[0]  # Use most recent experiment
             print(f"📂 Loading most recent experiment: {exp_dir.name}")
         else:
             # Use provided experiment name/timestamp
@@ -358,21 +365,41 @@ def resume_training(
     history = {}
     try:
         history = load_training_history(exp_dir)
-        print(
-            f"📜 Loaded previous training history: {len(history.get('train_loss', []))} epochs"
+
+        # Truncate history to match the checkpoint
+        # Use metadata.total_epochs_completed if available, fallback to checkpoint epoch
+        checkpoint_epoch = checkpoint_info["epoch"]
+        metadata = checkpoint_info.get("metadata", {})
+        total_epochs_in_checkpoint = metadata.get(
+            "total_epochs_completed", checkpoint_epoch
         )
+
+        if history and "train_loss" in history and len(history["train_loss"]) > 0:
+            # Truncate to the number of epochs present when checkpoint was saved
+            # This correctly handles val_every > 1 scenarios
+            if len(history["train_loss"]) > total_epochs_in_checkpoint:
+                for key in history:
+                    history[key] = history[key][:total_epochs_in_checkpoint]
+                print(
+                    f"📊 Loaded history and truncated to {total_epochs_in_checkpoint} validation points"
+                )
+            else:
+                print(
+                    f"📊 Loaded history ({len(history['train_loss'])} validation points)"
+                )
     except FileNotFoundError:
-        print("📜 No previous history found, starting fresh tracking")
         history = {}
 
     # Calculate starting epoch for resuming
-    # Checkpoint now stores 1-based epoch (the epoch that was just completed)
-    # So next epoch to train is checkpoint["epoch"] + 1
-    completed_epoch = checkpoint_info["epoch"]
-    start_epoch = completed_epoch + 1
+    checkpoint_epoch = checkpoint_info["epoch"]
+    start_epoch = checkpoint_epoch + 1
+    best_val_loss = checkpoint_info["metrics"].get("val", {}).get("loss", float("inf"))
 
-    print(f"\n📈 Resuming from epoch {start_epoch} (last completed: {completed_epoch})")
-    print(f"📊 Previous best metrics: {checkpoint_info['metrics'].get('val', {})}")
+    print(
+        f"📦 Resuming from epoch {start_epoch} (checkpoint at epoch {checkpoint_epoch})"
+    )
+    if checkpoint_name == "best_model.pth":
+        print(f"   Best model val_loss: {best_val_loss:.4f}")
     print("=" * 80 + "\n")
 
     return checkpoint_info, start_epoch, history, exp_dir

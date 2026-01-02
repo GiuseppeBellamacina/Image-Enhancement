@@ -20,6 +20,8 @@ scipy>=1.11.0
 matplotlib>=3.7.0
 seaborn>=0.12.0
 tqdm>=4.65.0
+requests>=2.31.0  # For Telegram notifications
+python-dotenv>=1.0.0  # For loading environment variables
 
 # Experiment Tracking
 tensorboard>=2.13.0

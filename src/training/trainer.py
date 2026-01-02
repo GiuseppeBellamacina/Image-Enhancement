@@ -3,12 +3,14 @@
 Training orchestrator for running complete training experiments
 """
 
+import os
 import time
 import torch
 from pathlib import Path
 from typing import Dict, Tuple
 from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import LRScheduler
+from dotenv import load_dotenv, find_dotenv
 
 from .training import train_epoch, validate
 from ..utils.checkpoints import save_checkpoint
@@ -16,6 +18,11 @@ from ..utils.experiment import (
     save_training_history,
     save_experiment_stats,
     load_experiment_stats,
+)
+from ..utils.telegram_notifier import (
+    send_epoch_notification,
+    send_completion_notification,
+    send_error_notification,
 )
 
 
@@ -41,6 +48,7 @@ def run_training(
     initial_best_epoch: int = 0,
     initial_history: Dict | None = None,
     use_amp: bool = False,
+    telegram_notify_every: int = 0,
 ) -> Tuple[Dict, Dict]:
     """
     Run complete training loop with validation, checkpointing, and early stopping.
@@ -66,6 +74,7 @@ def run_training(
         initial_best_loss: Initial best validation loss (inf for new training)
         initial_history: Previous training history to continue from (optional)
         use_amp: Whether to use automatic mixed precision (reduces VRAM by ~40-50%)
+        telegram_notify_every: Send notification every N epochs (0 to disable, reads credentials from .env)
 
     Returns:
         Tuple of (history, best_info) where:
@@ -141,6 +150,22 @@ def run_training(
     best_val_loss = initial_best_loss
     best_epoch = initial_best_epoch if initial_best_epoch > 0 else 0
     patience_counter = 0
+
+    # Telegram notification setup - load credentials from .env
+    load_dotenv(find_dotenv())
+    telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
+    
+    telegram_enabled = bool(
+        telegram_bot_token and telegram_chat_id and telegram_notify_every > 0
+    )
+    if telegram_enabled:
+        print(f"📱 Telegram notifications: ENABLED (every {telegram_notify_every} epochs)")
+    elif telegram_notify_every > 0:
+        print(f"⚠️  Telegram notifications: DISABLED (missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID in .env)")
+    
+    # Track training start time for final notification
+    training_start_time = time.time()
 
     print("\n" + "=" * 80)
     if start_epoch > 1:
@@ -298,17 +323,51 @@ def run_training(
                 )
                 print(f"  💾 Checkpoint saved (epoch {epoch})")
 
+            # Send Telegram notification if enabled and it's time
+            if (
+                telegram_enabled
+                and val_metrics
+                and epoch % telegram_notify_every == 0
+            ):
+                send_epoch_notification(
+                    bot_token=telegram_bot_token,
+                    chat_id=telegram_chat_id,
+                    epoch=epoch,
+                    total_epochs=num_epochs,
+                    train_metrics=train_metrics,
+                    val_metrics=val_metrics,
+                    lr=current_lr,
+                    best_epoch=best_epoch,
+                    best_val_loss=best_val_loss,
+                )
+
             # Early stopping
             if patience_counter >= patience:
                 print(
                     f"\n⚠️  Early stopping triggered! No improvement for {patience} epochs."
                 )
+                
+                # Send early stopping notification
+                if telegram_enabled:
+                    training_time = time.time() - training_start_time
+                    send_completion_notification(
+                        bot_token=telegram_bot_token,
+                        chat_id=telegram_chat_id,
+                        final_epoch=epoch,
+                        total_epochs=num_epochs,
+                        best_epoch=best_epoch,
+                        best_val_loss=best_val_loss,
+                        training_time=training_time,
+                        stopped_early=True,
+                    )
+                
                 break
 
             print("-" * 80)
 
     except KeyboardInterrupt:
         training_interrupted = True
+        print("\n⚠️  Training interrupted by user (KeyboardInterrupt)")
     except (torch.cuda.OutOfMemoryError, RuntimeError) as e:
         # Check if it's an OOM error
         if "out of memory" in str(e).lower():
@@ -316,6 +375,18 @@ def run_training(
             print("💥 CUDA OUT OF MEMORY ERROR")
             print("=" * 80)
             print(f"\nError: {e}\n")
+
+            # Send error notification
+            if telegram_enabled:
+                current_epoch = len(history["train_loss"])
+                send_error_notification(
+                    bot_token=telegram_bot_token,
+                    chat_id=telegram_chat_id,
+                    epoch=current_epoch,
+                    total_epochs=num_epochs,
+                    error=e,
+                    show_traceback=False,
+                )
 
             # Save emergency checkpoint
             print("💾 Saving emergency checkpoint...")
@@ -361,10 +432,36 @@ def run_training(
         else:
             # Non-OOM RuntimeError
             print(f"\n❌ Runtime error during training: {e}")
+            
+            # Send error notification
+            if telegram_enabled:
+                current_epoch = len(history["train_loss"])
+                send_error_notification(
+                    bot_token=telegram_bot_token,
+                    chat_id=telegram_chat_id,
+                    epoch=current_epoch,
+                    total_epochs=num_epochs,
+                    error=e,
+                    show_traceback=True,
+                )
+            
             training_interrupted = True
             raise
     except Exception as e:
         print(f"\n❌ Unexpected error during training: {e}")
+        
+        # Send error notification
+        if telegram_enabled:
+            current_epoch = len(history["train_loss"])
+            send_error_notification(
+                bot_token=telegram_bot_token,
+                chat_id=telegram_chat_id,
+                epoch=current_epoch,
+                total_epochs=num_epochs,
+                error=e,
+                show_traceback=True,
+            )
+        
         training_interrupted = True
         raise
     finally:
@@ -423,6 +520,20 @@ def run_training(
         print(f"   Best model: epoch {best_epoch} with val_loss {best_val_loss:.4f}")
         print(f"   Validation points saved: {len(history['train_loss'])}")
         print("=" * 80 + "\n")
+        
+        # Send completion notification
+        if telegram_enabled:
+            training_time = time.time() - training_start_time
+            send_completion_notification(
+                bot_token=telegram_bot_token,
+                chat_id=telegram_chat_id,
+                final_epoch=len(history["train_loss"]),
+                total_epochs=num_epochs,
+                best_epoch=best_epoch,
+                best_val_loss=best_val_loss,
+                training_time=training_time,
+                stopped_early=False,
+            )
     else:
         completed_epochs = len(history["train_loss"])
         print("\n" + "=" * 80)

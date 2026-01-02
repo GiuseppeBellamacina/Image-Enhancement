@@ -219,7 +219,19 @@ def run_training(
     training_interrupted = False
 
     try:
-        for epoch in range(start_epoch if start_epoch > 0 else 1, num_epochs + 1):
+        # Create epoch progress bar
+        epoch_range = range(start_epoch if start_epoch > 0 else 1, num_epochs + 1)
+        epoch_pbar = tqdm(
+            epoch_range,
+            desc="📊 Overall Progress",
+            position=0,
+            leave=True,
+            initial=start_epoch - 1 if start_epoch > 1 else 0,  # Resume from correct position
+            total=num_epochs,
+            bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} epochs [{elapsed}<{remaining}, {rate_fmt}]",
+        )
+
+        for epoch in epoch_pbar:
             epoch_start_time = time.time()
 
             # Learning rate warmup (only if not already completed in previous training)
@@ -299,6 +311,15 @@ def run_training(
                 print(f" | VRAM: {memory_reserved:.0f}MB")
             else:
                 print()
+
+            # Update epoch progress bar with metrics
+            postfix_dict = {
+                "loss": f"{train_metrics['loss']:.4f}",
+                "best": f"{best_val_loss:.4f}" if best_val_loss != float("inf") else "N/A",
+            }
+            if val_metrics:
+                postfix_dict["val"] = f"{val_metrics['loss']:.4f}"
+            epoch_pbar.set_postfix(postfix_dict)
 
             # Update history only when we validate (to keep history synchronized with validation)
             if val_metrics:

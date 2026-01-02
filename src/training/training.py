@@ -42,7 +42,13 @@ def train_epoch(
     running_l1 = 0.0
     running_ssim = 0.0
 
-    pbar = tqdm(train_loader, desc=f"Epoch {epoch} [Train]", leave=False)
+    pbar = tqdm(
+        train_loader,
+        desc=f"Epoch {epoch} [Train]",
+        leave=False,
+        position=1,
+        bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}] {postfix}",
+    )
 
     for batch_idx, (degraded, clean) in enumerate(pbar):
         output = None
@@ -183,7 +189,13 @@ def validate(
     running_l1 = 0.0
     running_ssim = 0.0
 
-    pbar = tqdm(val_loader, desc=f"Epoch {epoch} [Val]", leave=False)
+    pbar = tqdm(
+        val_loader,
+        desc=f"Epoch {epoch} [Val]",
+        leave=False,
+        position=1,
+        bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}] {postfix}",
+    )
 
     for batch_idx, (degraded, clean) in enumerate(pbar):
         output = None

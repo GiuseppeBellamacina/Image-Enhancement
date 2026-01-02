@@ -167,8 +167,9 @@ def get_dataloaders(
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
-        pin_memory=True,
+        pin_memory=True if num_workers > 0 else False,
         drop_last=True,
+        persistent_workers=True if num_workers > 0 else False,  # Avoid worker restart overhead
     )
 
     val_loader = DataLoader(
@@ -176,7 +177,8 @@ def get_dataloaders(
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
-        pin_memory=True,
+        pin_memory=True if num_workers > 0 else False,
+        persistent_workers=True if num_workers > 0 else False,  # Avoid worker restart overhead
     )
 
     print("📊 Dataset Summary:")

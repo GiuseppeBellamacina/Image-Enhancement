@@ -562,9 +562,18 @@ def run_training(
             # Load previous stats if resuming
             prev_stats = load_experiment_stats(checkpoints_dir.parent)
 
-            # Calculate current session stats
-            total_time_current = sum(history["epoch_time"])
-            avg_epoch_time = sum(history["epoch_time"]) / len(history["epoch_time"])
+            # Filter out None values from timing data (epochs without validation)
+            valid_epoch_times = [t for t in history["epoch_time"] if t is not None]
+            valid_inference_times = [t for t in history.get("inference_time", []) if t is not None]
+            valid_memory_allocated = [m for m in history.get("memory_allocated_mb", []) if m is not None]
+
+            # Calculate current session stats (only from validation epochs)
+            if valid_epoch_times:
+                total_time_current = sum(valid_epoch_times)
+                avg_epoch_time = total_time_current / len(valid_epoch_times)
+            else:
+                total_time_current = 0.0
+                avg_epoch_time = prev_stats.get("avg_epoch_time_seconds", 0.0)
 
             # Calculate cumulative stats
             total_training_time = (
@@ -573,20 +582,17 @@ def run_training(
             total_epochs_trained = len(history["train_loss"])
 
             # Memory stats
-            peak_memory = (
-                max(history["memory_allocated_mb"])
-                if history.get("memory_allocated_mb")
-                else 0.0
-            )
+            if valid_memory_allocated:
+                peak_memory = max(valid_memory_allocated)
+            else:
+                peak_memory = 0.0
             peak_memory = max(
                 peak_memory, prev_stats.get("peak_memory_allocated_mb", 0.0)
             )
 
             # Inference stats
-            if history.get("inference_time") and len(history["inference_time"]) > 0:
-                avg_inference_time = sum(history["inference_time"]) / len(
-                    history["inference_time"]
-                )
+            if valid_inference_times:
+                avg_inference_time = sum(valid_inference_times) / len(valid_inference_times)
             else:
                 avg_inference_time = prev_stats.get("avg_inference_time_seconds", 0.0)
 

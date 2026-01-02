@@ -43,7 +43,9 @@ def generate_degraded_dataset(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Get all image files
-    image_files = sorted(list(input_dir.glob("**/*.png")) + list(input_dir.glob("**/*.jpg")))
+    image_files = sorted(
+        list(input_dir.glob("**/*.png")) + list(input_dir.glob("**/*.jpg"))
+    )
 
     # Print degradation info
     print(f"🔍 Found {len(image_files)} images in {input_dir}")

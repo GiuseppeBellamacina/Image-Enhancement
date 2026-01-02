@@ -395,7 +395,7 @@ def fork_experiment(
     if parent_stats.exists():
         new_stats = exp_dir / "experiment_stats.json"
         shutil.copy2(parent_stats, new_stats)
-        print(f"✅ Copied experiment stats from parent (cumulative)")
+        print("✅ Copied experiment stats from parent (cumulative)")
     else:
         print("⚠️  No experiment_stats.json found in parent (starting fresh)")
 
@@ -592,7 +592,9 @@ def print_training_summary(
     stats = load_experiment_stats(exp_dir)
     if stats.get("total_training_time_seconds", 0) > 0:
         print("\nPerformance Statistics:")
-        print(f"  Total training time: {stats['total_training_time_hours']:.2f}h ({stats['total_training_time_seconds']:.0f}s)")
+        print(
+            f"  Total training time: {stats['total_training_time_hours']:.2f}h ({stats['total_training_time_seconds']:.0f}s)"
+        )
         print(f"  Total epochs trained: {stats['total_epochs_trained']}")
         if stats.get("avg_epoch_time_seconds", 0) > 0:
             print(f"  Avg epoch time: {stats['avg_epoch_time_seconds']:.1f}s")

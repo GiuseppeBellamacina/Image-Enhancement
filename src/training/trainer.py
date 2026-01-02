@@ -12,7 +12,11 @@ from torch.optim.lr_scheduler import LRScheduler
 
 from .training import train_epoch, validate
 from ..utils.checkpoints import save_checkpoint
-from ..utils.experiment import save_training_history, save_experiment_stats, load_experiment_stats
+from ..utils.experiment import (
+    save_training_history,
+    save_experiment_stats,
+    load_experiment_stats,
+)
 
 
 def run_training(
@@ -229,7 +233,7 @@ def run_training(
             if val_metrics:
                 print(f" (inference: {inference_time:.1f}s)", end="")
             if device == "cuda":
-                print(f" | VRAM: {memory_allocated:.0f}MB")
+                print(f" | VRAM: {memory_reserved:.0f}MB")
             else:
                 print()
 
@@ -378,18 +382,28 @@ def run_training(
             # Calculate current session stats
             total_time_current = sum(history["epoch_time"])
             avg_epoch_time = sum(history["epoch_time"]) / len(history["epoch_time"])
-            
+
             # Calculate cumulative stats
-            total_training_time = prev_stats.get("total_training_time_seconds", 0.0) + total_time_current
+            total_training_time = (
+                prev_stats.get("total_training_time_seconds", 0.0) + total_time_current
+            )
             total_epochs_trained = len(history["train_loss"])
-            
+
             # Memory stats
-            peak_memory = max(history["memory_allocated_mb"]) if history.get("memory_allocated_mb") else 0.0
-            peak_memory = max(peak_memory, prev_stats.get("peak_memory_allocated_mb", 0.0))
-            
+            peak_memory = (
+                max(history["memory_allocated_mb"])
+                if history.get("memory_allocated_mb")
+                else 0.0
+            )
+            peak_memory = max(
+                peak_memory, prev_stats.get("peak_memory_allocated_mb", 0.0)
+            )
+
             # Inference stats
             if history.get("inference_time") and len(history["inference_time"]) > 0:
-                avg_inference_time = sum(history["inference_time"]) / len(history["inference_time"])
+                avg_inference_time = sum(history["inference_time"]) / len(
+                    history["inference_time"]
+                )
             else:
                 avg_inference_time = prev_stats.get("avg_inference_time_seconds", 0.0)
 
@@ -414,9 +428,7 @@ def run_training(
         print("\n" + "=" * 80)
         print("⚠️  Training Interrupted")
         if best_epoch > 0:
-            print(
-                f"   Best model: epoch {best_epoch} (val_loss: {best_val_loss:.4f})"
-            )
+            print(f"   Best model: epoch {best_epoch} (val_loss: {best_val_loss:.4f})")
         print(
             f"   History contains {completed_epochs} validation point{'s' if completed_epochs != 1 else ''}"
         )

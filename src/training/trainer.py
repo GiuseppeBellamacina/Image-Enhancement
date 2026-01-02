@@ -20,6 +20,7 @@ from ..utils.experiment import (
     load_experiment_stats,
 )
 from ..utils.telegram_notifier import (
+    send_training_start_notification,
     send_epoch_notification,
     send_completion_notification,
     send_error_notification,
@@ -48,7 +49,8 @@ def run_training(
     initial_best_epoch: int = 0,
     initial_history: Dict | None = None,
     use_amp: bool = False,
-    telegram_notify_every: int = 0,
+    config: Dict | None = None,
+    telegram_config: Dict | None = None,
 ) -> Tuple[Dict, Dict]:
     """
     Run complete training loop with validation, checkpointing, and early stopping.
@@ -74,7 +76,12 @@ def run_training(
         initial_best_loss: Initial best validation loss (inf for new training)
         initial_history: Previous training history to continue from (optional)
         use_amp: Whether to use automatic mixed precision (reduces VRAM by ~40-50%)
-        telegram_notify_every: Send notification every N epochs (0 to disable, reads credentials from .env)
+        config: Training configuration dictionary
+        telegram_config: Telegram notifications configuration dict with keys:
+            - notify_every: int (send notification every N epochs, 0 to disable)
+            - model_name: str (model name for notifications)
+            - degradation_info: dict (degradation type and settings)
+            Credentials are read from .env (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
 
     Returns:
         Tuple of (history, best_info) where:
@@ -152,18 +159,31 @@ def run_training(
     patience_counter = 0
 
     # Telegram notification setup - load credentials from .env
+    telegram_notify_every = 0
+    telegram_model_name = "Model"
+    telegram_degradation_info = None
+
+    if telegram_config:
+        telegram_notify_every = telegram_config.get("notify_every", 0)
+        telegram_model_name = telegram_config.get("model_name", "Model")
+        telegram_degradation_info = telegram_config.get("degradation_info", None)
+
     load_dotenv(find_dotenv())
     telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
     telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
-    
+
     telegram_enabled = bool(
         telegram_bot_token and telegram_chat_id and telegram_notify_every > 0
     )
     if telegram_enabled:
-        print(f"📱 Telegram notifications: ENABLED (every {telegram_notify_every} epochs)")
+        print(
+            f"📱 Telegram notifications: ENABLED (every {telegram_notify_every} epochs)"
+        )
     elif telegram_notify_every > 0:
-        print(f"⚠️  Telegram notifications: DISABLED (missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID in .env)")
-    
+        print(
+            "⚠️  Telegram notifications: DISABLED (missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID in .env)"
+        )
+
     # Track training start time for final notification
     training_start_time = time.time()
 
@@ -176,6 +196,24 @@ def run_training(
         print("🚀 Starting Training")
         print(f"   Epochs: 1 to {num_epochs}")
     print("=" * 80 + "\n")
+
+    # Send initial training notification to Telegram
+    if telegram_enabled and config is not None:
+        # Get experiment name from checkpoints_dir parent
+        experiment_name = checkpoints_dir.parent.name
+        total_params = sum(p.numel() for p in model.parameters())
+
+        send_training_start_notification(
+            bot_token=telegram_bot_token,
+            chat_id=telegram_chat_id,
+            model_name=telegram_model_name,
+            config=config,
+            experiment_name=experiment_name,
+            total_params=total_params,
+            resume_from_epoch=start_epoch if start_epoch > 0 else 0,
+            degradation_info=telegram_degradation_info,
+        )
+        print("📱 Training start notification sent to Telegram\n")
 
     # Track if training completed successfully
     training_interrupted = False
@@ -324,11 +362,7 @@ def run_training(
                 print(f"  💾 Checkpoint saved (epoch {epoch})")
 
             # Send Telegram notification if enabled and it's time
-            if (
-                telegram_enabled
-                and val_metrics
-                and epoch % telegram_notify_every == 0
-            ):
+            if telegram_enabled and val_metrics and epoch % telegram_notify_every == 0:
                 send_epoch_notification(
                     bot_token=telegram_bot_token,
                     chat_id=telegram_chat_id,
@@ -346,7 +380,7 @@ def run_training(
                 print(
                     f"\n⚠️  Early stopping triggered! No improvement for {patience} epochs."
                 )
-                
+
                 # Send early stopping notification
                 if telegram_enabled:
                     training_time = time.time() - training_start_time
@@ -360,7 +394,7 @@ def run_training(
                         training_time=training_time,
                         stopped_early=True,
                     )
-                
+
                 break
 
             print("-" * 80)
@@ -432,7 +466,7 @@ def run_training(
         else:
             # Non-OOM RuntimeError
             print(f"\n❌ Runtime error during training: {e}")
-            
+
             # Send error notification
             if telegram_enabled:
                 current_epoch = len(history["train_loss"])
@@ -444,12 +478,12 @@ def run_training(
                     error=e,
                     show_traceback=True,
                 )
-            
+
             training_interrupted = True
             raise
     except Exception as e:
         print(f"\n❌ Unexpected error during training: {e}")
-        
+
         # Send error notification
         if telegram_enabled:
             current_epoch = len(history["train_loss"])
@@ -461,7 +495,7 @@ def run_training(
                 error=e,
                 show_traceback=True,
             )
-        
+
         training_interrupted = True
         raise
     finally:
@@ -520,7 +554,7 @@ def run_training(
         print(f"   Best model: epoch {best_epoch} with val_loss {best_val_loss:.4f}")
         print(f"   Validation points saved: {len(history['train_loss'])}")
         print("=" * 80 + "\n")
-        
+
         # Send completion notification
         if telegram_enabled:
             training_time = time.time() - training_start_time

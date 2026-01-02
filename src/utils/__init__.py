@@ -37,9 +37,11 @@ from .paths import (
 from .download_dataset import download_div2k_dataset
 from .telegram_notifier import (
     send_telegram_message,
+    send_training_start_notification,
     send_epoch_notification,
     send_completion_notification,
     send_error_notification,
+    format_training_start_message,
     format_epoch_message,
     format_completion_message,
     format_error_message,
@@ -78,9 +80,11 @@ __all__ = [
     "download_div2k_dataset",
     # Telegram notification utilities
     "send_telegram_message",
+    "send_training_start_notification",
     "send_epoch_notification",
     "send_completion_notification",
     "send_error_notification",
+    "format_training_start_message",
     "format_epoch_message",
     "format_completion_message",
     "format_error_message",

@@ -6,7 +6,7 @@ during the training process to keep track of progress remotely.
 """
 
 import html
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Any
 import traceback
 
 
@@ -28,7 +28,10 @@ def send_telegram_message(
     try:
         import requests
     except ImportError:
-        return False, "requests library not installed. Install with: pip install requests"
+        return (
+            False,
+            "requests library not installed. Install with: pip install requests",
+        )
 
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
 
@@ -46,6 +49,80 @@ def send_telegram_message(
         return True, "Message sent successfully!"
     except Exception as e:
         return False, f"Error sending message: {str(e)}"
+
+
+def format_training_start_message(
+    model_name: str,
+    config: Dict[str, Any],
+    experiment_name: str,
+    total_params: int,
+    resume_from_epoch: int = 0,
+    degradation_info: Dict[str, Any] | None = None,
+) -> str:
+    """
+    Format a training start message for Telegram.
+
+    Args:
+        model_name: Name of the model architecture
+        config: Training configuration dictionary
+        experiment_name: Name/path of the experiment
+        total_params: Total number of model parameters
+        resume_from_epoch: Epoch from which training is resumed (0 if new)
+        degradation_info: Information about degradation type and settings
+
+    Returns:
+        Formatted message string
+    """
+    status = "RESUMING" if resume_from_epoch > 0 else "STARTING"
+    emoji = "🔄" if resume_from_epoch > 0 else "🚀"
+
+    message = f"""{emoji} TRAINING {status} {emoji}
+
+📋 Experiment: {experiment_name}
+
+🤖 Model Configuration:
+  • Architecture: {model_name}
+  • Parameters: {total_params:,}
+  • Features: {config.get('model_features', 'N/A')}
+  • Device: {config.get('device', 'N/A')}
+
+📊 Training Setup:
+  • Epochs: {config.get('num_epochs', 'N/A')}
+  • Batch Size: {config.get('batch_size', 'N/A')}
+  • Learning Rate: {config.get('learning_rate', 'N/A'):.2e}
+  • Weight Decay: {config.get('weight_decay', 'N/A'):.2e}
+
+🎯 Loss Configuration:
+  • Alpha (L1): {config.get('loss_alpha', 'N/A')}
+  • Beta (SSIM): {config.get('loss_beta', 'N/A')}
+
+📐 Data:
+  • Patch Size: {config.get('patch_size', 'N/A')}
+  • Patches/Image: {config.get('patches_per_image', 'N/A')}
+
+⚙️ Optimization:
+  • Scheduler: {config.get('scheduler', 'N/A')}
+  • Warmup Epochs: {config.get('warmup_epochs', 'N/A')}
+  • Early Stopping: {config.get('patience', 'N/A')} epochs
+  • Mixed Precision: {'✅' if config.get('use_amp', False) else '❌'}
+"""
+
+    # Add degradation info if provided
+    if degradation_info:
+        message += "\n🎨 Degradation:\n"
+        message += f"  • Type: {degradation_info.get('type', 'N/A')}\n"
+        if "description" in degradation_info:
+            message += f"  • Description: {degradation_info['description']}\n"
+        if "settings" in degradation_info:
+            for key, value in degradation_info["settings"].items():
+                message += f"  • {key}: {value}\n"
+
+    if resume_from_epoch > 0:
+        message += f"\n🔄 Resuming from epoch {resume_from_epoch}\n"
+
+    message += "\n⏳ Training in progress..."
+
+    return message
 
 
 def format_epoch_message(
@@ -179,6 +256,48 @@ def format_error_message(
         message += f"\n📋 Traceback (last 500 chars):\n{tb}"
 
     return message
+
+
+def send_training_start_notification(
+    bot_token: str,
+    chat_id: str,
+    model_name: str,
+    config: Dict[str, Any],
+    experiment_name: str,
+    total_params: int,
+    resume_from_epoch: int = 0,
+    degradation_info: Dict[str, Any] | None = None,
+) -> bool:
+    """
+    Send a training start notification to Telegram.
+
+    Args:
+        bot_token: Telegram bot token
+        chat_id: Chat ID where to send the message
+        model_name: Name of the model architecture
+        config: Training configuration dictionary
+        experiment_name: Name/path of the experiment
+        total_params: Total number of model parameters
+        resume_from_epoch: Epoch from which training is resumed (0 if new)
+        degradation_info: Information about degradation type and settings
+
+    Returns:
+        True if message was sent successfully, False otherwise
+    """
+    if not bot_token or not chat_id:
+        return False
+
+    message = format_training_start_message(
+        model_name=model_name,
+        config=config,
+        experiment_name=experiment_name,
+        total_params=total_params,
+        resume_from_epoch=resume_from_epoch,
+        degradation_info=degradation_info,
+    )
+
+    success, _ = send_telegram_message(bot_token, chat_id, message)
+    return success
 
 
 def send_epoch_notification(

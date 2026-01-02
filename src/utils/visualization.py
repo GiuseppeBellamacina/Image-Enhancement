@@ -154,14 +154,33 @@ def plot_training_curves(
         history: Dictionary with training history containing:
                  'train_loss', 'val_loss', 'train_l1', 'val_l1',
                  'train_ssim', 'val_ssim', 'lr'
+                 Note: validation metrics may contain None values for epochs without validation
         save_path: Path to save the figure (optional)
         figsize: Figure size (width, height)
     """
     fig, axes = plt.subplots(2, 2, figsize=figsize)
 
+    # Helper function to filter out None values and get corresponding epoch indices
+    def get_valid_data(data):
+        """Extract non-None values and their epoch indices (1-based)"""
+        epochs = []
+        values = []
+        for i, val in enumerate(data):
+            if val is not None:
+                epochs.append(i + 1)  # 1-based epoch numbering
+                values.append(val)
+        return epochs, values
+
+    # Get epoch range for training data (always complete)
+    train_epochs = list(range(1, len(history["train_loss"]) + 1))
+
     # Total Loss
-    axes[0, 0].plot(history["train_loss"], label="Train", linewidth=2)
-    axes[0, 0].plot(history["val_loss"], label="Val", linewidth=2)
+    axes[0, 0].plot(train_epochs, history["train_loss"], label="Train", linewidth=2)
+    val_epochs, val_loss = get_valid_data(history["val_loss"])
+    if val_epochs:
+        axes[0, 0].plot(
+            val_epochs, val_loss, label="Val", linewidth=2, marker="o", markersize=4
+        )
     axes[0, 0].set_xlabel("Epoch", fontsize=12)
     axes[0, 0].set_ylabel("Total Loss", fontsize=12)
     axes[0, 0].set_title("Combined Loss (L1 + SSIM)", fontsize=14, fontweight="bold")
@@ -169,8 +188,12 @@ def plot_training_curves(
     axes[0, 0].grid(alpha=0.3)
 
     # L1 Loss
-    axes[0, 1].plot(history["train_l1"], label="Train", linewidth=2)
-    axes[0, 1].plot(history["val_l1"], label="Val", linewidth=2)
+    axes[0, 1].plot(train_epochs, history["train_l1"], label="Train", linewidth=2)
+    val_epochs, val_l1 = get_valid_data(history["val_l1"])
+    if val_epochs:
+        axes[0, 1].plot(
+            val_epochs, val_l1, label="Val", linewidth=2, marker="o", markersize=4
+        )
     axes[0, 1].set_xlabel("Epoch", fontsize=12)
     axes[0, 1].set_ylabel("L1 Loss", fontsize=12)
     axes[0, 1].set_title("L1 Loss", fontsize=14, fontweight="bold")
@@ -178,8 +201,12 @@ def plot_training_curves(
     axes[0, 1].grid(alpha=0.3)
 
     # SSIM
-    axes[1, 0].plot(history["train_ssim"], label="Train", linewidth=2)
-    axes[1, 0].plot(history["val_ssim"], label="Val", linewidth=2)
+    axes[1, 0].plot(train_epochs, history["train_ssim"], label="Train", linewidth=2)
+    val_epochs, val_ssim = get_valid_data(history["val_ssim"])
+    if val_epochs:
+        axes[1, 0].plot(
+            val_epochs, val_ssim, label="Val", linewidth=2, marker="o", markersize=4
+        )
     axes[1, 0].set_xlabel("Epoch", fontsize=12)
     axes[1, 0].set_ylabel("SSIM", fontsize=12)
     axes[1, 0].set_title("SSIM (higher is better)", fontsize=14, fontweight="bold")
@@ -187,7 +214,7 @@ def plot_training_curves(
     axes[1, 0].grid(alpha=0.3)
 
     # Learning Rate
-    axes[1, 1].plot(history["lr"], linewidth=2, color="green")
+    axes[1, 1].plot(train_epochs, history["lr"], linewidth=2, color="green")
     axes[1, 1].set_xlabel("Epoch", fontsize=12)
     axes[1, 1].set_ylabel("Learning Rate", fontsize=12)
     axes[1, 1].set_title("Learning Rate Schedule", fontsize=14, fontweight="bold")

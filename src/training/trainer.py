@@ -221,7 +221,7 @@ def run_training(
 
     # Track if training completed successfully
     training_interrupted = False
-    
+
     # Track validation count for Telegram notifications (based on validations, not epochs)
     validation_count = 0
 
@@ -332,14 +332,16 @@ def run_training(
                 postfix_dict["val"] = f"{val_metrics['loss']:.4f}"
             epoch_pbar.set_postfix(postfix_dict)
 
-            # Update history only when we validate (to keep history synchronized with validation)
+            # Always append training data to history (every epoch)
+            history["train_loss"].append(train_metrics["loss"])
+            history["train_l1"].append(train_metrics["l1"])
+            history["train_ssim"].append(train_metrics["ssim"])
+            history["lr"].append(current_lr)
+
+            # Append validation data only when we validate
             if val_metrics:
                 validation_count += 1  # Increment validation counter
-                
-                history["train_loss"].append(train_metrics["loss"])
-                history["train_l1"].append(train_metrics["l1"])
-                history["train_ssim"].append(train_metrics["ssim"])
-                history["lr"].append(current_lr)
+
                 history["val_loss"].append(val_metrics["loss"])
                 history["val_l1"].append(val_metrics["l1"])
                 history["val_ssim"].append(val_metrics["ssim"])
@@ -347,9 +349,18 @@ def run_training(
                 history["inference_time"].append(inference_time)
                 history["memory_allocated_mb"].append(memory_allocated)
                 history["memory_reserved_mb"].append(memory_reserved)
+            else:
+                # No validation this epoch - append None to keep arrays aligned
+                history["val_loss"].append(None)
+                history["val_l1"].append(None)
+                history["val_ssim"].append(None)
+                history["epoch_time"].append(None)
+                history["inference_time"].append(None)
+                history["memory_allocated_mb"].append(None)
+                history["memory_reserved_mb"].append(None)
 
-                # Save history after every validation (will be truncated at resume based on checkpoint)
-                save_training_history(history, checkpoints_dir.parent)
+            # Save history after every epoch
+            save_training_history(history, checkpoints_dir.parent)
 
             # Save checkpoint when validation improves
             if val_metrics and val_metrics["loss"] < best_val_loss:
@@ -396,7 +407,11 @@ def run_training(
                 print(f"  💾 Checkpoint saved (epoch {epoch})")
 
             # Send Telegram notification based on VALIDATION count (not epoch number)
-            if telegram_enabled and val_metrics and validation_count % telegram_notify_every == 0:
+            if (
+                telegram_enabled
+                and val_metrics
+                and validation_count % telegram_notify_every == 0
+            ):
                 send_epoch_notification(
                     bot_token=telegram_bot_token,
                     chat_id=telegram_chat_id,
@@ -408,7 +423,9 @@ def run_training(
                     best_epoch=best_epoch,
                     best_val_loss=best_val_loss,
                 )
-                print(f"  📱 Telegram notification sent (validation #{validation_count})")
+                print(
+                    f"  📱 Telegram notification sent (validation #{validation_count})"
+                )
 
             # Early stopping
             if patience_counter >= patience:

@@ -7,6 +7,7 @@ import os
 import time
 import torch
 from pathlib import Path
+from tqdm.auto import tqdm
 from typing import Dict, Tuple
 from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import LRScheduler
@@ -78,10 +79,13 @@ def run_training(
         use_amp: Whether to use automatic mixed precision (reduces VRAM by ~40-50%)
         config: Training configuration dictionary
         telegram_config: Telegram notifications configuration dict with keys:
-            - notify_every: int (send notification every N epochs, 0 to disable)
+            - notify_every: int (send notification every N VALIDATIONS, 0 to disable)
             - model_name: str (model name for notifications)
             - degradation_info: dict (degradation type and settings)
             Credentials are read from .env (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
+            Note: Notifications are sent every N validations, not every N epochs.
+                  E.g., if val_every=3 and notify_every=2, you get notifications
+                  after validations #2, #4, #6... (epochs 6, 12, 18... if starting from epoch 1)
 
     Returns:
         Tuple of (history, best_info) where:
@@ -217,6 +221,9 @@ def run_training(
 
     # Track if training completed successfully
     training_interrupted = False
+    
+    # Track validation count for Telegram notifications (based on validations, not epochs)
+    validation_count = 0
 
     try:
         # Create epoch progress bar
@@ -226,7 +233,9 @@ def run_training(
             desc="📊 Overall Progress",
             position=0,
             leave=True,
-            initial=start_epoch - 1 if start_epoch > 1 else 0,  # Resume from correct position
+            initial=(
+                start_epoch - 1 if start_epoch > 1 else 0
+            ),  # Resume from correct position
             total=num_epochs,
             bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} epochs [{elapsed}<{remaining}, {rate_fmt}]",
         )
@@ -315,7 +324,9 @@ def run_training(
             # Update epoch progress bar with metrics
             postfix_dict = {
                 "loss": f"{train_metrics['loss']:.4f}",
-                "best": f"{best_val_loss:.4f}" if best_val_loss != float("inf") else "N/A",
+                "best": (
+                    f"{best_val_loss:.4f}" if best_val_loss != float("inf") else "N/A"
+                ),
             }
             if val_metrics:
                 postfix_dict["val"] = f"{val_metrics['loss']:.4f}"
@@ -323,6 +334,8 @@ def run_training(
 
             # Update history only when we validate (to keep history synchronized with validation)
             if val_metrics:
+                validation_count += 1  # Increment validation counter
+                
                 history["train_loss"].append(train_metrics["loss"])
                 history["train_l1"].append(train_metrics["l1"])
                 history["train_ssim"].append(train_metrics["ssim"])
@@ -382,8 +395,8 @@ def run_training(
                 )
                 print(f"  💾 Checkpoint saved (epoch {epoch})")
 
-            # Send Telegram notification if enabled and it's time
-            if telegram_enabled and val_metrics and epoch % telegram_notify_every == 0:
+            # Send Telegram notification based on VALIDATION count (not epoch number)
+            if telegram_enabled and val_metrics and validation_count % telegram_notify_every == 0:
                 send_epoch_notification(
                     bot_token=telegram_bot_token,
                     chat_id=telegram_chat_id,
@@ -395,6 +408,7 @@ def run_training(
                     best_epoch=best_epoch,
                     best_val_loss=best_val_loss,
                 )
+                print(f"  📱 Telegram notification sent (validation #{validation_count})")
 
             # Early stopping
             if patience_counter >= patience:

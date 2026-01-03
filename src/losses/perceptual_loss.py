@@ -206,12 +206,12 @@ class CombinedPerceptualLoss(nn.Module):
             else:
                 norm_alpha = 0.84
                 norm_beta = 0.16
-            
+
             self.combined_loss = CombinedLoss(alpha=norm_alpha, beta=norm_beta)
         else:
             # Create individual loss components including perceptual
             from pytorch_msssim import SSIM
-            
+
             self.l1_loss = nn.L1Loss()
             self.ssim_loss = SSIM(data_range=1.0, size_average=True, channel=3)
             self.perceptual_loss = VGGPerceptualLoss(layers=vgg_layers)
@@ -239,13 +239,18 @@ class CombinedPerceptualLoss(nn.Module):
         """
         # If gamma=0, use CombinedLoss directly (no VGG)
         if self.gamma == 0:
-            assert self.combined_loss is not None, "combined_loss should be initialized when gamma=0"
+            assert (
+                self.combined_loss is not None
+            ), "combined_loss should be initialized when gamma=0"
             return self.combined_loss(pred, target)
-        
+
         # Otherwise compute with perceptual loss
-        assert self.l1_loss is not None and self.ssim_loss is not None and self.perceptual_loss is not None, \
-            "Individual losses should be initialized when gamma>0"
-        
+        assert (
+            self.l1_loss is not None
+            and self.ssim_loss is not None
+            and self.perceptual_loss is not None
+        ), "Individual losses should be initialized when gamma>0"
+
         # Convert from [-1, 1] to [0, 1] for all losses
         pred_01 = (pred + 1) / 2
         target_01 = (target + 1) / 2
@@ -258,9 +263,7 @@ class CombinedPerceptualLoss(nn.Module):
 
         # Compute perceptual loss
         perceptual = self.perceptual_loss(pred_01, target_01)
-        total_loss = (
-            self.alpha * l1 + self.beta * ssim_loss + self.gamma * perceptual
-        )
+        total_loss = self.alpha * l1 + self.beta * ssim_loss + self.gamma * perceptual
         metrics = {
             "l1": l1.item(),
             "ssim": ssim_val.item(),
@@ -272,9 +275,7 @@ class CombinedPerceptualLoss(nn.Module):
 
     def __repr__(self):
         if self.gamma == 0:
-            return (
-                f"CombinedPerceptualLoss(γ=0 → using {self.combined_loss})"
-            )
+            return f"CombinedPerceptualLoss(γ=0 → using {self.combined_loss})"
         return (
             f"CombinedPerceptualLoss(α={self.alpha}, β={self.beta}, "
             f"γ={self.gamma}, vgg={self.perceptual_loss})"

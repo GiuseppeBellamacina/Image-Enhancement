@@ -229,7 +229,10 @@ def validate(
                 running_perceptual += metrics["perceptual"]
 
             # Update progress bar (include perceptual if available)
-            postfix = {"loss": f"{metrics['total']:.4f}", "ssim": f"{metrics['ssim']:.3f}"}
+            postfix = {
+                "loss": f"{metrics['total']:.4f}",
+                "ssim": f"{metrics['ssim']:.3f}",
+            }
             if "perceptual" in metrics and metrics["perceptual"] > 0:
                 postfix["perceptual"] = f"{metrics['perceptual']:.4f}"
             pbar.set_postfix(postfix)

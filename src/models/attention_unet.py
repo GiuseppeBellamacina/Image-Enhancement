@@ -11,7 +11,13 @@ def NormLayer(norm: str, num_channels: int):
     if norm == "batch":
         return nn.BatchNorm2d(num_channels)
     elif norm == "group":
-        return nn.GroupNorm(8, num_channels)
+        # GroupNorm requires num_channels to be divisible by num_groups
+        # For single channel, use BatchNorm instead
+        if num_channels == 1:
+            return nn.BatchNorm2d(num_channels)
+        # Use min(8, num_channels) to handle cases where num_channels < 8
+        num_groups = min(8, num_channels) if num_channels >= 8 else num_channels
+        return nn.GroupNorm(num_groups, num_channels)
     else:
         raise ValueError(f"Unknown norm type: {norm}")
 

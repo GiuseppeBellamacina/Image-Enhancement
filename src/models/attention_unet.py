@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Tuple, Optional
+from typing import Tuple
 
 
 # -------------------------
@@ -46,7 +46,9 @@ class AttentionGate(nn.Module):
         x1 = self.W_x(x)
 
         if g1.shape[2:] != x1.shape[2:]:
-            g1 = F.interpolate(g1, size=x1.shape[2:], mode="bilinear", align_corners=False)
+            g1 = F.interpolate(
+                g1, size=x1.shape[2:], mode="bilinear", align_corners=False
+            )
 
         psi = self.relu(g1 + x1)
         psi = self.psi(psi)
@@ -116,7 +118,9 @@ class Up(nn.Module):
         x1 = self.up(x1)
 
         if x1.shape[2:] != x2.shape[2:]:
-            x1 = F.interpolate(x1, size=x2.shape[2:], mode="bilinear", align_corners=False)
+            x1 = F.interpolate(
+                x1, size=x2.shape[2:], mode="bilinear", align_corners=False
+            )
 
         if self.use_attention:
             x2 = self.attention(x1, x2)
@@ -165,7 +169,8 @@ class AttentionUNet(nn.Module):
             features * 8 // factor,
             norm,
             bilinear,
-            use_attention and ("bottleneck" in attention_levels or "all" in attention_levels),
+            use_attention
+            and ("bottleneck" in attention_levels or "all" in attention_levels),
         )
         self.up2 = Up(
             features * 8,

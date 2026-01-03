@@ -75,6 +75,22 @@ def format_training_start_message(
     """
     status = "RESUMING" if resume_from_epoch > 0 else "STARTING"
     emoji = "🔄" if resume_from_epoch > 0 else "🚀"
+    
+    # Handle learning rate (single or dual for GANs)
+    lr_g = config.get('learning_rate_G')
+    lr_d = config.get('learning_rate_D')
+    lr_single = config.get('learning_rate')
+    
+    if lr_g is not None and lr_d is not None:
+        lr_str = f"G={lr_g:.2e}, D={lr_d:.2e}"
+    elif lr_single is not None:
+        lr_str = f"{lr_single:.2e}"
+    else:
+        lr_str = "N/A"
+    
+    # Handle weight decay
+    wd = config.get('weight_decay')
+    wd_str = f"{wd:.2e}" if wd is not None else "N/A"
 
     message = f"""{emoji} TRAINING {status} {emoji}
 
@@ -83,17 +99,17 @@ def format_training_start_message(
 🤖 Model Configuration:
   • Architecture: {model_name}
   • Parameters: {total_params:,}
-  • Features: {config.get('model_features', 'N/A')}
+  • Features: {config.get('model_features', config.get('generator_features', 'N/A'))}
   • Device: {config.get('device', 'N/A')}
 
 📊 Training Setup:
   • Epochs: {config.get('num_epochs', 'N/A')}
   • Batch Size: {config.get('batch_size', 'N/A')}
-  • Learning Rate: {config.get('learning_rate', 'N/A'):.2e}
-  • Weight Decay: {config.get('weight_decay', 'N/A'):.2e}
+  • Learning Rate: {lr_str}
+  • Weight Decay: {wd_str}
 
 🎯 Loss Configuration:
-  • Alpha (L1): {config.get('loss_alpha', 'N/A')}
+  • Alpha (L1): {config.get('loss_alpha', config.get('lambda_L1', 'N/A'))}
   • Beta (SSIM): {config.get('loss_beta', 'N/A')}
 
 📐 Data:
@@ -101,8 +117,8 @@ def format_training_start_message(
   • Patches/Image: {config.get('patches_per_image', 'N/A')}
 
 ⚙️ Optimization:
-  • Scheduler: {config.get('scheduler', 'N/A')}
-  • Warmup Epochs: {config.get('warmup_epochs', 'N/A')}
+  • Scheduler: {config.get('scheduler', 'StepLR')}
+  • Warmup Epochs: {config.get('warmup_epochs', 0)}
   • Early Stopping: {config.get('patience', 'N/A')} epochs
   • Mixed Precision: {'✅' if config.get('use_amp', False) else '❌'}
 """

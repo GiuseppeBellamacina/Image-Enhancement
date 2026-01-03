@@ -3,6 +3,10 @@ Degradation methods for images.
 """
 
 from .gaussian_noise import add_gaussian_noise
+from .generate_degraded_dataset import (
+    generate_degraded_dataset,
+    generate_degraded_dataset_auto,
+)
 
 # from .motion_blur import add_motion_blur
 # from .jpeg_compression import jpeg_compress
@@ -10,6 +14,8 @@ from .gaussian_noise import add_gaussian_noise
 
 __all__ = [
     "add_gaussian_noise",
+    "generate_degraded_dataset",
+    "generate_degraded_dataset_auto",
     # 'add_motion_blur',
     # 'jpeg_compress',
     # 'add_salt_and_pepper'

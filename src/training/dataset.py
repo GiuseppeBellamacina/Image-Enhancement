@@ -59,26 +59,30 @@ class ImageEnhancementDataset(Dataset):
         valid_files = []
         for deg, clean in zip(self.degraded_files, self.clean_files):
             assert deg.name == clean.name, f"File mismatch: {deg.name} != {clean.name}"
-            
+
             # Check if image is large enough for patch extraction
             img = cv2.imread(str(deg))
             if img is None:
                 print(f"Warning: Could not read {deg.name}, skipping")
                 continue
-            
+
             h, w = img.shape[:2]
             if h < patch_size or w < patch_size:
-                print(f"Warning: {deg.name} ({h}x{w}) is smaller than patch size ({patch_size}x{patch_size}), skipping")
+                print(
+                    f"Warning: {deg.name} ({h}x{w}) is smaller than patch size ({patch_size}x{patch_size}), skipping"
+                )
                 continue
-            
+
             valid_files.append((deg, clean))
-        
+
         # Update file lists with only valid files
         self.degraded_files = [f[0] for f in valid_files]
         self.clean_files = [f[1] for f in valid_files]
-        
-        assert len(self.degraded_files) > 0, f"No valid images found! All images are smaller than {patch_size}x{patch_size}"
-        
+
+        assert (
+            len(self.degraded_files) > 0
+        ), f"No valid images found! All images are smaller than {patch_size}x{patch_size}"
+
         print(f"Loaded {len(self.degraded_files)} valid images for {mode} set")
 
         # Setup augmentations
@@ -107,10 +111,11 @@ class ImageEnhancementDataset(Dataset):
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Extract random patch from two aligned images"""
         h, w = img1.shape[:2]
-        
+
         # Ensure image is large enough (should be guaranteed by __init__ check)
-        assert h >= self.patch_size and w >= self.patch_size, \
-            f"Image ({h}x{w}) is smaller than patch size ({self.patch_size}x{self.patch_size})"
+        assert (
+            h >= self.patch_size and w >= self.patch_size
+        ), f"Image ({h}x{w}) is smaller than patch size ({self.patch_size}x{self.patch_size})"
 
         # Random crop coordinates
         top = np.random.randint(0, h - self.patch_size + 1)

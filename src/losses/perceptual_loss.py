@@ -14,6 +14,8 @@ import torch.nn as nn
 from torchvision import models
 from typing import List, Optional
 
+from .combined_loss import CombinedLoss
+
 
 class VGGPerceptualLoss(nn.Module):
     """
@@ -179,31 +181,50 @@ class CombinedPerceptualLoss(nn.Module):
         self,
         alpha: float = 0.7,  # L1 weight
         beta: float = 0.2,  # SSIM weight
-        gamma: float = 0.1,  # Perceptual weight
+        gamma: float = 0.0,  # Perceptual weight (0 = use CombinedLoss only)
         vgg_layers: List[str] = ["relu2_2", "relu3_3"],
     ):
         super().__init__()
-
-        from pytorch_msssim import SSIM
 
         self.alpha = alpha
         self.beta = beta
         self.gamma = gamma
 
-        # Component losses
-        self.l1_loss = nn.L1Loss()
-        self.ssim_loss = SSIM(data_range=1.0, size_average=True, channel=3)
-        self.perceptual_loss = VGGPerceptualLoss(layers=vgg_layers)
+        # Type hints for conditional attributes
+        self.combined_loss: Optional[CombinedLoss] = None
+        self.perceptual_loss: Optional[VGGPerceptualLoss] = None
+        self.l1_loss: Optional[nn.L1Loss] = None
+        self.ssim_loss: Optional[nn.Module] = None
 
-        # Validate weights sum (should be close to 1.0)
-        total = alpha + beta + gamma
-        if abs(total - 1.0) > 0.01:
-            import warnings
+        # If gamma is 0, use CombinedLoss directly (no VGG)
+        if gamma == 0:
+            # Normalize alpha and beta to sum to 1.0
+            total = alpha + beta
+            if total > 0:
+                norm_alpha = alpha / total
+                norm_beta = beta / total
+            else:
+                norm_alpha = 0.84
+                norm_beta = 0.16
+            
+            self.combined_loss = CombinedLoss(alpha=norm_alpha, beta=norm_beta)
+        else:
+            # Create individual loss components including perceptual
+            from pytorch_msssim import SSIM
+            
+            self.l1_loss = nn.L1Loss()
+            self.ssim_loss = SSIM(data_range=1.0, size_average=True, channel=3)
+            self.perceptual_loss = VGGPerceptualLoss(layers=vgg_layers)
 
-            warnings.warn(
-                f"Loss weights sum to {total:.3f}, not 1.0. "
-                f"Consider normalizing: α={alpha}, β={beta}, γ={gamma}"
-            )
+            # Validate weights sum (should be close to 1.0)
+            total = alpha + beta + gamma
+            if abs(total - 1.0) > 0.01:
+                import warnings
+
+                warnings.warn(
+                    f"Loss weights sum to {total:.3f}, not 1.0. "
+                    f"Consider normalizing: α={alpha}, β={beta}, γ={gamma}"
+                )
 
     def forward(self, pred: torch.Tensor, target: torch.Tensor):
         """
@@ -216,6 +237,15 @@ class CombinedPerceptualLoss(nn.Module):
         Returns:
             Tuple of (total_loss, metrics_dict)
         """
+        # If gamma=0, use CombinedLoss directly (no VGG)
+        if self.gamma == 0:
+            assert self.combined_loss is not None, "combined_loss should be initialized when gamma=0"
+            return self.combined_loss(pred, target)
+        
+        # Otherwise compute with perceptual loss
+        assert self.l1_loss is not None and self.ssim_loss is not None and self.perceptual_loss is not None, \
+            "Individual losses should be initialized when gamma>0"
+        
         # Convert from [-1, 1] to [0, 1] for all losses
         pred_01 = (pred + 1) / 2
         target_01 = (target + 1) / 2
@@ -226,31 +256,25 @@ class CombinedPerceptualLoss(nn.Module):
         ssim_val = self.ssim_loss(pred_01, target_01)
         ssim_loss = 1 - ssim_val
 
-        # Only compute perceptual loss if gamma > 0 (skip VGG forward pass otherwise)
-        if self.gamma > 0:
-            perceptual = self.perceptual_loss(pred_01, target_01)
-            total_loss = (
-                self.alpha * l1 + self.beta * ssim_loss + self.gamma * perceptual
-            )
-            metrics = {
-                "l1": l1.item(),
-                "ssim": ssim_val.item(),
-                "perceptual": perceptual.item(),
-                "total": total_loss.item(),
-            }
-        else:
-            # No perceptual loss - skip VGG computation entirely
-            total_loss = self.alpha * l1 + self.beta * ssim_loss
-            metrics = {
-                "l1": l1.item(),
-                "ssim": ssim_val.item(),
-                "perceptual": 0.0,
-                "total": total_loss.item(),
-            }
+        # Compute perceptual loss
+        perceptual = self.perceptual_loss(pred_01, target_01)
+        total_loss = (
+            self.alpha * l1 + self.beta * ssim_loss + self.gamma * perceptual
+        )
+        metrics = {
+            "l1": l1.item(),
+            "ssim": ssim_val.item(),
+            "perceptual": perceptual.item(),
+            "total": total_loss.item(),
+        }
 
         return total_loss, metrics
 
     def __repr__(self):
+        if self.gamma == 0:
+            return (
+                f"CombinedPerceptualLoss(γ=0 → using {self.combined_loss})"
+            )
         return (
             f"CombinedPerceptualLoss(α={self.alpha}, β={self.beta}, "
             f"γ={self.gamma}, vgg={self.perceptual_loss})"

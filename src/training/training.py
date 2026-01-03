@@ -41,6 +41,7 @@ def train_epoch(
     running_loss = 0.0
     running_l1 = 0.0
     running_ssim = 0.0
+    running_perceptual = 0.0
 
     pbar = tqdm(
         train_loader,
@@ -97,15 +98,18 @@ def train_epoch(
             running_loss += metrics["total"]
             running_l1 += metrics["l1"]
             running_ssim += metrics["ssim"]
+            if "perceptual" in metrics:
+                running_perceptual += metrics["perceptual"]
 
-            # Update progress bar
-            pbar.set_postfix(
-                {
-                    "loss": f"{metrics['total']:.4f}",
-                    "l1": f"{metrics['l1']:.4f}",
-                    "ssim": f"{metrics['ssim']:.3f}",
-                }
-            )
+            # Update progress bar (include perceptual if available)
+            postfix = {
+                "loss": f"{metrics['total']:.4f}",
+                "l1": f"{metrics['l1']:.4f}",
+                "ssim": f"{metrics['ssim']:.3f}",
+            }
+            if "perceptual" in metrics and metrics["perceptual"] > 0:
+                postfix["perceptual"] = f"{metrics['perceptual']:.4f}"
+            pbar.set_postfix(postfix)
 
         except (torch.cuda.OutOfMemoryError, RuntimeError) as e:
             # Check if it's an OOM error
@@ -156,6 +160,8 @@ def train_epoch(
         "l1": running_l1 / n_batches,
         "ssim": running_ssim / n_batches,
     }
+    if running_perceptual > 0:
+        avg_metrics["perceptual"] = running_perceptual / n_batches
 
     return avg_metrics
 
@@ -188,6 +194,7 @@ def validate(
     running_loss = 0.0
     running_l1 = 0.0
     running_ssim = 0.0
+    running_perceptual = 0.0
 
     pbar = tqdm(
         val_loader,
@@ -218,11 +225,14 @@ def validate(
             running_loss += metrics["total"]
             running_l1 += metrics["l1"]
             running_ssim += metrics["ssim"]
+            if "perceptual" in metrics:
+                running_perceptual += metrics["perceptual"]
 
-            # Update progress bar
-            pbar.set_postfix(
-                {"loss": f"{metrics['total']:.4f}", "ssim": f"{metrics['ssim']:.3f}"}
-            )
+            # Update progress bar (include perceptual if available)
+            postfix = {"loss": f"{metrics['total']:.4f}", "ssim": f"{metrics['ssim']:.3f}"}
+            if "perceptual" in metrics and metrics["perceptual"] > 0:
+                postfix["perceptual"] = f"{metrics['perceptual']:.4f}"
+            pbar.set_postfix(postfix)
 
         except (torch.cuda.OutOfMemoryError, RuntimeError) as e:
             # Check if it's an OOM error
@@ -261,5 +271,7 @@ def validate(
         "l1": running_l1 / n_batches,
         "ssim": running_ssim / n_batches,
     }
+    if running_perceptual > 0:
+        avg_metrics["perceptual"] = running_perceptual / n_batches
 
     return avg_metrics

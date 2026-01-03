@@ -113,13 +113,13 @@ def download_div2k_dataset(raw_data_dir: Path | None = None) -> dict[str, Path]:
     downloads_dir.mkdir(parents=True, exist_ok=True)
 
     paths = {}
-    
+
     # Check if all datasets already exist
     all_exist = all(
         (raw_data_dir / name).exists() and any((raw_data_dir / name).glob("*.png"))
         for name in DATASETS.keys()
     )
-    
+
     if not all_exist:
         print("=" * 80)
         print("📊 Downloading DIV2K Dataset")

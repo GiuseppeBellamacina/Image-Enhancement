@@ -299,6 +299,12 @@ def compare_configs(
 
     changes = {}
 
+    def normalize_value(value):
+        """Normalize tuple/list for comparison (JSON doesn't preserve tuples)"""
+        if isinstance(value, (tuple, list)):
+            return list(value)
+        return value
+
     # Check all keys in new config
     for key, new_value in new_config.items():
         if key in ignore_keys:
@@ -306,8 +312,12 @@ def compare_configs(
 
         old_value = old_config.get(key)
 
+        # Normalize values for comparison (handle tuple/list equivalence)
+        norm_old = normalize_value(old_value)
+        norm_new = normalize_value(new_value)
+
         # Check if value changed
-        if old_value != new_value:
+        if norm_old != norm_new:
             changes[key] = (old_value, new_value)
 
     # Check for removed keys (existed in old but not in new)

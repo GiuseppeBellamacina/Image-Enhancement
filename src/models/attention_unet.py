@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Tuple
+from typing import Tuple, Optional
 
 
 # -------------------------
@@ -148,14 +148,25 @@ class AttentionUNet(nn.Module):
         use_attention: bool = True,
         attention_levels: Tuple[str] = ("bottleneck",),
         norm: str = "batch",
+        trained_noise_sigma: float = 100.0,
     ):
         """
-        attention_levels:
-            ("bottleneck",)        -> solo up1
-            ("all",)               -> tutti gli up
-            ()                     -> nessuna attention
+        Args:
+            in_channels: Number of input channels
+            out_channels: Number of output channels
+            features: Base number of features
+            bilinear: Use bilinear upsampling instead of transposed conv
+            use_attention: Enable attention gates
+            attention_levels: Where to apply attention
+                ("bottleneck",) -> solo up1
+                ("all",)        -> tutti gli up
+                ()              -> nessuna attention
+            norm: Normalization type ('batch' or 'group')
+            trained_noise_sigma: Noise level the model was trained on (for adaptive blending)
         """
         super().__init__()
+        
+        self.trained_noise_sigma = trained_noise_sigma
 
         self.use_attention = use_attention
         self.attention_levels = attention_levels
@@ -202,19 +213,40 @@ class AttentionUNet(nn.Module):
 
         self.outc = nn.Conv2d(features, out_channels, 1)
 
-    def forward(self, x):
+    def forward(self, x, noise_sigma: Optional[float] = None):
+        """
+        Forward pass with optional adaptive denoising strength.
+        
+        Args:
+            x: Input tensor (B, C, H, W)
+            noise_sigma: Actual noise level in the input (optional)
+                If None, returns full denoising output
+                If provided, automatically applies adaptive blending based on noise ratio
+        
+        Returns:
+            Denoised output tensor
+        """
+        # Standard U-Net forward pass
         x1 = self.inc(x)
         x2 = self.down1(x1)
         x3 = self.down2(x2)
         x4 = self.down3(x3)
         x5 = self.down4(x4)
 
-        x = self.up1(x5, x4)
-        x = self.up2(x, x3)
-        x = self.up3(x, x2)
-        x = self.up4(x, x1)
-
-        return self.outc(x)
+        out = self.up1(x5, x4)
+        out = self.up2(out, x3)
+        out = self.up3(out, x2)
+        out = self.up4(out, x1)
+        out = self.outc(out)
+        
+        # Adaptive blending if noise level is provided
+        if noise_sigma is not None:
+            # Calculate blending weight: alpha = actual_sigma / trained_sigma
+            alpha = min(noise_sigma / self.trained_noise_sigma, 1.0)
+            # Blend: lower noise = more denoising, higher noise = keep more input
+            out = alpha * x + (1.0 - alpha) * out
+        
+        return out
 
     def get_num_params(self):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)

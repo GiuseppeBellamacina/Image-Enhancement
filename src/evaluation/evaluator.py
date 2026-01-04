@@ -32,6 +32,7 @@ class ImageRestorationEvaluator:
         device: str = "cuda",
         patch_size: int = 256,
         overlap: int = 32,
+        noise_sigma: Optional[float] = None,
     ):
         """
         Initialize evaluator.
@@ -41,11 +42,14 @@ class ImageRestorationEvaluator:
             device: Device to run inference on
             patch_size: Size of patches for sliding window inference
             overlap: Overlap between patches
+            noise_sigma: Actual noise level in test images (optional)
+                If provided, enables adaptive blending in the model
         """
         self.model = model
         self.device = device
         self.patch_size = patch_size
         self.overlap = overlap
+        self.noise_sigma = noise_sigma
 
         self.model.eval()
 
@@ -91,6 +95,7 @@ class ImageRestorationEvaluator:
                 patch_size=self.patch_size,
                 overlap=self.overlap,
                 device=self.device,
+                noise_sigma=self.noise_sigma,
             )
 
         # Move clean tensor to same device as restored for metrics calculation

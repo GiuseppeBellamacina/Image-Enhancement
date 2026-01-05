@@ -141,9 +141,14 @@ Quantizzazione del colore con diversi livelli di bit depth + dithering.
 - 2-bit random dithering
 - Training: immagini ditherate → originali clean
 
+### ✅ **Salt & Pepper noise**
+**Implementazione:**
+- densità variabile
+- rapporto salt/pepper variabile
+
 ### 🔜 Future Degradations (Planned)
 
-- **Salt & Pepper noise** (densità variabile)
+
 - **Gaussian blur** / **Motion blur** (kernel size variabile)
 - **JPEG compression artifacts** (quality: 30, 50, 70, 90)
 - **Low-light simulation** (gamma correction + scaling)

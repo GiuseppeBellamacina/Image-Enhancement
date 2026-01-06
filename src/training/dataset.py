@@ -166,6 +166,7 @@ def get_dataloaders(
     patch_size: int = 128,
     patches_per_image: int = 10,
     num_workers: int = 4,
+    prefetch_factor: int = None,
 ):
     """
     Create train and validation dataloaders.
@@ -203,6 +204,7 @@ def get_dataloaders(
         persistent_workers=(
             True if num_workers > 0 else False
         ),  # Avoid worker restart overhead
+        prefetch_factor=prefetch_factor
     )
 
     val_loader = DataLoader(
@@ -214,6 +216,7 @@ def get_dataloaders(
         persistent_workers=(
             True if num_workers > 0 else False
         ),  # Avoid worker restart overhead
+        prefetch_factor=prefetch_factor
     )
 
     print("📊 Dataset Summary:")

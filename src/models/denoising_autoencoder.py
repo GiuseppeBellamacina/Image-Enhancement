@@ -4,27 +4,27 @@ Denoising Autoencoder Model
 import torch
 
 class DenoisingAutoencoder(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, features=64):
         super().__init__()
 
         # Encoder
         self.encoder = torch.nn.Sequential(
-            torch.nn.Conv2d(3, 16, kernel_size=3, stride=2, padding=1),
+            torch.nn.Conv2d(3, features // 4, kernel_size=3, stride=2, padding=1),
             torch.nn.ReLU(),
-            torch.nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1),
+            torch.nn.Conv2d(features // 4, features // 2, kernel_size=3, stride=2, padding=1),
             torch.nn.ReLU(),
-            torch.nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),
+            torch.nn.Conv2d(features // 2, features, kernel_size=3, stride=2, padding=1),
             torch.nn.ReLU(),
         )
 
         # Decoder
         self.decoder = torch.nn.Sequential(
-            torch.nn.ConvTranspose2d(64, 32, kernel_size=3, stride=2, padding=1, output_padding=1),
+            torch.nn.ConvTranspose2d(features, features // 2, kernel_size=3, stride=2, padding=1, output_padding=1),
             torch.nn.ReLU(),
-            torch.nn.ConvTranspose2d(32, 16, kernel_size=3, stride=2, padding=1, output_padding=1),
+            torch.nn.ConvTranspose2d(features // 2, features // 4, kernel_size=3, stride=2, padding=1, output_padding=1),
             torch.nn.ReLU(),
-            torch.nn.ConvTranspose2d(16, 3, kernel_size=3, stride=2, padding=1, output_padding=1),
-            torch.nn.Sigmoid(),  # To ensure output is between 0 and 1
+            torch.nn.ConvTranspose2d(features // 4, 3, kernel_size=3, stride=2, padding=1, output_padding=1),
+            torch.nn.Tanh(),  # To ensure output is between -1 and 1
         )
 
     def forward(self, x):   

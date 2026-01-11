@@ -25,10 +25,14 @@ class Pix2PixGenerator(nn.Module):
         in_channels: Number of input channels (default: 3 for RGB)
         out_channels: Number of output channels (default: 3 for RGB)
         features: Base number of features (default: 64)
+        use_tanh: Whether to use tanh activation on output (default: True)
+                  Set to False for residual learning where output is noise
     """
     
-    def __init__(self, in_channels: int = 3, out_channels: int = 3, features: int = 64):
+    def __init__(self, in_channels: int = 3, out_channels: int = 3, features: int = 64, use_tanh: bool = True):
         super().__init__()
+        
+        self.use_tanh = use_tanh
         
         # Encoder (downsampling) - 6 layers for 256x256 input
         self.enc1 = self._conv_block(in_channels, features, normalize=False)  # No BN in first layer
@@ -49,11 +53,15 @@ class Pix2PixGenerator(nn.Module):
         self.dec5 = self._upconv_block(features * 8, features * 2)
         self.dec6 = self._upconv_block(features * 4, features)
         
-        # Final layer
-        self.final = nn.Sequential(
-            nn.ConvTranspose2d(features * 2, out_channels, kernel_size=4, stride=2, padding=1),
-            nn.Tanh()  # Output in [-1, 1]
-        )
+        # Final layer (configurable activation)
+        if use_tanh:
+            self.final = nn.Sequential(
+                nn.ConvTranspose2d(features * 2, out_channels, kernel_size=4, stride=2, padding=1),
+                nn.Tanh()  # Output in [-1, 1] for direct image prediction
+            )
+        else:
+            # No activation for residual learning (predicting noise)
+            self.final = nn.ConvTranspose2d(features * 2, out_channels, kernel_size=4, stride=2, padding=1)
         
         # No need for separate pooling - downsampling is done in conv blocks
         
@@ -84,7 +92,8 @@ class Pix2PixGenerator(nn.Module):
             x: Input tensor (B, 3, H, W) in range [-1, 1]
             
         Returns:
-            Output tensor (B, 3, H, W) in range [-1, 1]
+            If use_tanh=True: Output tensor (B, 3, H, W) in range [-1, 1] (restored image)
+            If use_tanh=False: Output tensor (B, 3, H, W) unbounded (predicted noise/residual)
         """
         # Encoder with skip connections (downsampling via stride=2)
         e1 = self.enc1(x)           # (B, 64, H/2, W/2)

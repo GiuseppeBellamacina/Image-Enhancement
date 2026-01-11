@@ -57,7 +57,7 @@ def generate_degraded_dataset(
         print(f"📦 Degradation: Gaussian Noise (σ={noise_sigma})")
     print(f"💾 Saving to: {output_dir}")
 
-    for img_path in tqdm(image_files, desc="Processing images"):
+    for idx, img_path in enumerate(tqdm(image_files, desc="Processing images")):
         # Load image
         img = cv2.imread(str(img_path))
         if img is None:
@@ -76,7 +76,12 @@ def generate_degraded_dataset(
                 seed=seed,
             )
         elif degradation_type == "gaussian_noise":
-            degraded = add_gaussian_noise(img_rgb, sigma=noise_sigma, seed=seed)
+            degraded = add_gaussian_noise(
+                img_rgb, 
+                sigma=noise_sigma, 
+                seed=seed, 
+                image_index=idx
+            )
         else:
             raise ValueError(f"Unknown degradation type: {degradation_type}")
 

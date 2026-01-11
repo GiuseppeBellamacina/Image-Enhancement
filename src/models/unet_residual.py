@@ -53,8 +53,10 @@ class Up(nn.Module):
             self.up = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
             self.conv = DoubleConv(in_channels, out_channels, in_channels // 2)
         else:
+            # Use kernel_size=4 with padding=1 to avoid checkerboard artifacts
+            # Standard kernel_size=2 creates uneven pixel overlaps causing grid patterns
             self.up = nn.ConvTranspose2d(
-                in_channels, in_channels // 2, kernel_size=2, stride=2
+                in_channels, in_channels // 2, kernel_size=4, stride=2, padding=1
             )
             self.conv = DoubleConv(in_channels, out_channels)
 

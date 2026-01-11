@@ -564,8 +564,12 @@ def run_training(
 
             # Filter out None values from timing data (epochs without validation)
             valid_epoch_times = [t for t in history["epoch_time"] if t is not None]
-            valid_inference_times = [t for t in history.get("inference_time", []) if t is not None]
-            valid_memory_allocated = [m for m in history.get("memory_allocated_mb", []) if m is not None]
+            valid_inference_times = [
+                t for t in history.get("inference_time", []) if t is not None
+            ]
+            valid_memory_allocated = [
+                m for m in history.get("memory_allocated_mb", []) if m is not None
+            ]
 
             # Calculate current session stats (only from validation epochs)
             if valid_epoch_times:
@@ -592,7 +596,9 @@ def run_training(
 
             # Inference stats
             if valid_inference_times:
-                avg_inference_time = sum(valid_inference_times) / len(valid_inference_times)
+                avg_inference_time = sum(valid_inference_times) / len(
+                    valid_inference_times
+                )
             else:
                 avg_inference_time = prev_stats.get("avg_inference_time_seconds", 0.0)
 

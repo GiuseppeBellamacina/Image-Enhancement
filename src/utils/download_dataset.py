@@ -112,11 +112,18 @@ def download_div2k_dataset(raw_data_dir: Path | None = None) -> dict[str, Path]:
     downloads_dir = raw_data_dir / "downloads"
     downloads_dir.mkdir(parents=True, exist_ok=True)
 
-    print("=" * 80)
-    print("📊 Downloading DIV2K Dataset")
-    print("=" * 80)
-
     paths = {}
+
+    # Check if all datasets already exist
+    all_exist = all(
+        (raw_data_dir / name).exists() and any((raw_data_dir / name).glob("*.png"))
+        for name in DATASETS.keys()
+    )
+
+    if not all_exist:
+        print("=" * 80)
+        print("📊 Downloading DIV2K Dataset")
+        print("=" * 80)
 
     # Download and extract each dataset
     for dataset_name, url in DATASETS.items():
@@ -126,8 +133,9 @@ def download_div2k_dataset(raw_data_dir: Path | None = None) -> dict[str, Path]:
         # Check if already exists
         if extract_dir.exists() and any(extract_dir.glob("*.png")):
             n_images = len(list(extract_dir.glob("*.png")))
-            print(f"\n✅ {dataset_name} already exists ({n_images} images)")
-            print(f"   Location: {extract_dir}")
+            if not all_exist:
+                print(f"\n✅ {dataset_name} already exists ({n_images} images)")
+                print(f"   Location: {extract_dir}")
             paths[dataset_name] = extract_dir
             continue
 
@@ -147,9 +155,10 @@ def download_div2k_dataset(raw_data_dir: Path | None = None) -> dict[str, Path]:
 
         paths[dataset_name] = extract_dir
 
-    print("\n" + "=" * 80)
-    print("✅ Dataset download complete!")
-    print("=" * 80)
-    print(f"\n📁 Data location: {raw_data_dir.absolute()}")
+    if not all_exist:
+        print("\n" + "=" * 80)
+        print("✅ Dataset download complete!")
+        print("=" * 80)
+        print(f"\n📁 Data location: {raw_data_dir.absolute()}")
 
     return paths

@@ -64,6 +64,7 @@ def sliding_window_inference(
     patch_size: int = 256,
     overlap: int = 32,
     device: str = "cuda",
+    noise_sigma: Optional[float] = None,
 ) -> torch.Tensor:
     """
     Perform inference on full-resolution image using sliding window approach.
@@ -74,6 +75,8 @@ def sliding_window_inference(
         patch_size: Size of patches to process
         overlap: Overlap between adjacent patches (for smooth blending)
         device: Device to run inference on
+        noise_sigma: Actual noise level in the input (optional)
+            If provided and model supports it, enables adaptive blending
 
     Returns:
         Restored image tensor (C, H, W) in range [-1, 1]
@@ -110,7 +113,12 @@ def sliding_window_inference(
 
                 # Add batch dimension and process
                 patch = patch.unsqueeze(0)
-                restored_patch = model(patch).squeeze(0)
+                
+                # Pass noise_sigma to model if provided
+                if noise_sigma is not None:
+                    restored_patch = model(patch, noise_sigma=noise_sigma).squeeze(0)
+                else:
+                    restored_patch = model(patch).squeeze(0)
 
                 # Accumulate with weights
                 output[:, y : y + patch_size, x : x + patch_size] += (

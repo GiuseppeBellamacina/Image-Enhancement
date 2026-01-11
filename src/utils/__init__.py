@@ -33,6 +33,7 @@ from .paths import (
     get_model_experiments_dir,
     get_raw_data_dir,
     get_degraded_data_dir,
+    get_specific_degraded_dir,
 )
 from .download_dataset import download_div2k_dataset
 from .telegram_notifier import (
@@ -76,6 +77,7 @@ __all__ = [
     "get_model_experiments_dir",
     "get_raw_data_dir",
     "get_degraded_data_dir",
+    "get_specific_degraded_dir",
     # Dataset utilities
     "download_div2k_dataset",
     # Telegram notification utilities

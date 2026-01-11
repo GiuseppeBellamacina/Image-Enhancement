@@ -90,6 +90,95 @@ def generate_degraded_dataset(
     print(f"✅ Done! Processed {len(image_files)} images")
 
 
+def generate_degraded_dataset_auto(
+    dataset_split: Literal["DIV2K_train_HR", "DIV2K_valid_HR"],
+    degradation_type: Literal["quantization", "gaussian_noise"] = "quantization",
+    # Quantization parameters
+    bits_per_channel: int = 2,
+    dithering_type: Literal[
+        "none", "random", "bayer2", "bayer4", "bayer8", "floyd_steinberg"
+    ] = "random",
+    # Gaussian noise parameters
+    noise_sigma: float = 25.0,
+    # General parameters
+    seed: int = 42,
+) -> tuple[Path, Path]:
+    """
+    Generate degraded dataset with automatic path generation based on parameters.
+    Creates organized directory structure: data/degraded/[type]/[params]/[split]/
+
+    **Automatically checks if dataset exists - only generates if missing.**
+
+    Args:
+        dataset_split: Which dataset to process ('DIV2K_train_HR' or 'DIV2K_valid_HR')
+        degradation_type: Type of degradation ('quantization' or 'gaussian_noise')
+        bits_per_channel: Bit depth for quantization (used if degradation_type='quantization')
+        dithering_type: Type of dithering (used if degradation_type='quantization')
+        noise_sigma: Noise standard deviation (used if degradation_type='gaussian_noise')
+        seed: Random seed for reproducibility
+
+    Returns:
+        Tuple of (degraded_path, clean_path) for the processed dataset
+
+    Examples:
+        >>> # Gaussian noise with sigma=100 on training set
+        >>> degraded, clean = generate_degraded_dataset_auto(
+        ...     dataset_split="DIV2K_train_HR",
+        ...     degradation_type="gaussian_noise",
+        ...     noise_sigma=100.0
+        ... )
+        >>> # Creates: data/degraded/gaussian/sigma_100/DIV2K_train_HR/
+
+        >>> # Quantization with random dithering at 2-bit on validation set
+        >>> degraded, clean = generate_degraded_dataset_auto(
+        ...     dataset_split="DIV2K_valid_HR",
+        ...     degradation_type="quantization",
+        ...     bits_per_channel=2,
+        ...     dithering_type="random"
+        ... )
+        >>> # Creates: data/degraded/dithering/random/2bit/DIV2K_valid_HR/
+    """
+    from src.utils import get_raw_data_dir, get_specific_degraded_dir
+
+    # Get clean input directory
+    clean_dir = get_raw_data_dir() / dataset_split
+
+    # Get output directory based on degradation parameters
+    if degradation_type == "gaussian_noise":
+        degraded_base = get_specific_degraded_dir(
+            degradation_type=degradation_type,
+            noise_sigma=noise_sigma,
+        )
+    else:  # quantization
+        degraded_base = get_specific_degraded_dir(
+            degradation_type=degradation_type,
+            bits_per_channel=bits_per_channel,
+            dithering_type=dithering_type,
+        )
+
+    # Add dataset split to the path
+    degraded_dir = degraded_base / dataset_split
+
+    # Check if dataset already exists
+    if degraded_dir.exists() and len(list(degraded_dir.glob("*.png"))) > 0:
+        # Dataset exists - silent skip
+        pass
+    else:
+        # Generate the degraded dataset
+        print(f"🎨 Generating degraded dataset: {degraded_dir}")
+        generate_degraded_dataset(
+            input_dir=clean_dir,
+            output_dir=degraded_dir,
+            degradation_type=degradation_type,
+            bits_per_channel=bits_per_channel,
+            dithering_type=dithering_type,
+            noise_sigma=noise_sigma,
+            seed=seed,
+        )
+
+    return degraded_dir, clean_dir
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Generate degraded dataset with various degradation types",

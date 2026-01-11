@@ -111,6 +111,8 @@ def format_training_start_message(
 🎯 Loss Configuration:
   • Alpha (L1): {config.get('loss_alpha', config.get('lambda_L1', 'N/A'))}
   • Beta (SSIM): {config.get('loss_beta', 'N/A')}
+  {f"  • Gamma (Perceptual): {config.get('loss_gamma', 'N/A')}" if 'loss_gamma' in config else ''}
+  {f"  • VGG Layers: {', '.join(config.get('perceptual_layers', []))}" if 'perceptual_layers' in config else ''}
 
 📐 Data:
   • Patch Size: {config.get('patch_size', 'N/A')}

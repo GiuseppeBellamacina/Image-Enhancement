@@ -88,6 +88,11 @@ def load_existing_experiment(
 
     base_dir = get_model_experiments_dir(model_name, degradation)
 
+    # Create base directory if it doesn't exist
+    if not base_dir.exists():
+        base_dir.mkdir(parents=True, exist_ok=True)
+        print(f"📁 Created experiment directory: {base_dir}")
+
     if resume_experiment == "latest":
         # Find most recent experiment
         experiment_dirs = sorted(
@@ -286,10 +291,19 @@ def compare_configs(
         ignore_keys = {
             "resume_from_checkpoint",
             "resume_experiment",
+            "num_epochs",
+            "save_every",
+            "val_every",
             "device",  # Device can change between runs
         }
 
     changes = {}
+
+    def normalize_value(value):
+        """Normalize tuple/list for comparison (JSON doesn't preserve tuples)"""
+        if isinstance(value, (tuple, list)):
+            return list(value)
+        return value
 
     # Check all keys in new config
     for key, new_value in new_config.items():
@@ -298,8 +312,12 @@ def compare_configs(
 
         old_value = old_config.get(key)
 
+        # Normalize values for comparison (handle tuple/list equivalence)
+        norm_old = normalize_value(old_value)
+        norm_new = normalize_value(new_value)
+
         # Check if value changed
-        if old_value != new_value:
+        if norm_old != norm_new:
             changes[key] = (old_value, new_value)
 
     # Check for removed keys (existed in old but not in new)
@@ -569,8 +587,14 @@ def print_training_summary(
 
     # Find the index of best validation loss in history
     # Cannot use best_epoch - 1 because with val_every > 1, history indices don't match epoch numbers
+    # Filter out None values before finding minimum
     if history.get("val_loss") and len(history["val_loss"]) > 0:
-        best_idx = history["val_loss"].index(min(history["val_loss"]))
+        val_losses = [v for v in history["val_loss"] if v is not None]
+        if val_losses:
+            best_val_loss_value = min(val_losses)
+            best_idx = history["val_loss"].index(best_val_loss_value)
+        else:
+            best_idx = 0
     else:
         best_idx = 0
 

@@ -88,6 +88,55 @@ def get_degraded_data_dir() -> Path:
     return get_project_path("data", "degraded")
 
 
+def get_specific_degraded_dir(
+    degradation_type: str,
+    noise_sigma: float | None = None,
+    bits_per_channel: int | None = None,
+    dithering_type: str | None = None,
+) -> Path:
+    """
+    Get the degraded data directory path based on degradation parameters.
+    Creates a hierarchical structure to keep different degradation configs separate.
+
+    Args:
+        degradation_type: Type of degradation ('gaussian_noise', 'quantization', etc.)
+        noise_sigma: Gaussian noise sigma (for gaussian_noise)
+        bits_per_channel: Bits per channel (for quantization)
+        dithering_type: Dithering type (for quantization)
+
+    Returns:
+        Path to degraded data with configuration-specific subdirectories
+
+    Examples:
+        Gaussian noise with sigma=100:
+            data/degraded/gaussian/sigma_100/
+
+        Quantization with random dithering at 2-bit:
+            data/degraded/dithering/random/2bit/
+
+        Quantization with Floyd-Steinberg at 4-bit:
+            data/degraded/dithering/floyd_steinberg/4bit/
+    """
+    base_path = get_degraded_data_dir()
+
+    if degradation_type == "gaussian_noise":
+        if noise_sigma is None:
+            raise ValueError("noise_sigma must be specified for gaussian_noise")
+        # Format: data/degraded/gaussian/sigma_100/
+        return base_path / "gaussian" / f"sigma_{int(noise_sigma)}"
+
+    elif degradation_type == "quantization":
+        if dithering_type is None or bits_per_channel is None:
+            raise ValueError(
+                "dithering_type and bits_per_channel must be specified for quantization"
+            )
+        # Format: data/degraded/dithering/random/2bit/
+        return base_path / "dithering" / dithering_type / f"{bits_per_channel}bit"
+
+    else:
+        raise ValueError(f"Unknown degradation_type: {degradation_type}")
+
+
 def get_processed_data_dir() -> Path:
     """Get the processed data directory path."""
     return get_project_path("data", "processed")

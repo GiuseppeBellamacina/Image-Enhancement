@@ -9,7 +9,10 @@ from typing import Union, Optional
 
 
 def add_gaussian_noise(
-    image: np.ndarray, sigma: Union[int, float] = 25, seed: Optional[int] = None
+    image: np.ndarray, 
+    sigma: Union[int, float] = 25, 
+    seed: Optional[int] = None,
+    image_index: Optional[int] = None
 ) -> np.ndarray:
     """
     Add Gaussian noise to an image.
@@ -18,16 +21,25 @@ def add_gaussian_noise(
         image: Input image as numpy array (H, W, C) in range [0, 255]
         sigma: Standard deviation of Gaussian noise (default: 25)
         seed: Random seed for reproducibility
+        image_index: Index of the image (used to create unique seed per image)
 
     Returns:
         Noisy image as numpy array in range [0, 255]
 
     Example:
         >>> img = cv2.imread('image.jpg')
-        >>> noisy = add_gaussian_noise(img, sigma=25)
+        >>> noisy = add_gaussian_noise(img, sigma=25, seed=42, image_index=0)
     """
-    if seed is not None:
-        np.random.seed(seed)
+    # 🔧 FIX: Create unique seed per image to avoid identical noise patterns
+    if seed is not None and image_index is not None:
+        unique_seed = seed + image_index  # Different noise for each image
+    elif seed is not None:
+        unique_seed = seed
+    else:
+        unique_seed = None
+    
+    if unique_seed is not None:
+        np.random.seed(unique_seed)
 
     # Generate Gaussian noise
     noise = np.random.randn(*image.shape) * sigma

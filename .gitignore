@@ -43,7 +43,6 @@ uv.lock
 .ruff_cache/
 
 # IDE
-.vscode/
 .idea/
 *.swp
 *.swo

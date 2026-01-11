@@ -64,6 +64,7 @@ def sliding_window_inference(
     patch_size: int = 256,
     overlap: int = 32,
     device: str = "cuda",
+    residual_learning: bool = False,
     noise_sigma: Optional[float] = None,
 ) -> torch.Tensor:
     """
@@ -75,6 +76,7 @@ def sliding_window_inference(
         patch_size: Size of patches to process
         overlap: Overlap between adjacent patches (for smooth blending)
         device: Device to run inference on
+        residual_learning: If True, model predicts noise and output is image - noise_hat
         noise_sigma: Actual noise level in the input (optional)
             If provided and model supports it, enables adaptive blending
 
@@ -114,6 +116,13 @@ def sliding_window_inference(
                 # Add batch dimension and process
                 patch = patch.unsqueeze(0)
                 
+                if residual_learning:
+                    # Model predicts noise
+                    noise_hat = model(patch)
+                    restored_patch = torch.clamp(patch - noise_hat, -1, 1).squeeze(0)
+                else:
+                    # Model predicts clean image directly
+                    
                 # Pass noise_sigma to model if provided
                 if noise_sigma is not None:
                     restored_patch = model(patch, noise_sigma=noise_sigma).squeeze(0)
@@ -161,6 +170,7 @@ def restore_image(
     patch_size: int = 256,
     overlap: int = 32,
     device: str = "cuda",
+    residual_learning: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Restore a full-resolution image from file.
@@ -172,6 +182,7 @@ def restore_image(
         patch_size: Size of patches for sliding window
         overlap: Overlap between patches
         device: Device to run inference on
+        residual_learning: If True, model predicts noise and output is image - noise_hat
 
     Returns:
         Tuple of (degraded_image, restored_image) as numpy arrays (H, W, C)
@@ -194,6 +205,7 @@ def restore_image(
         patch_size=patch_size,
         overlap=overlap,
         device=device,
+        residual_learning=residual_learning,
     )
 
     # Denormalize to image

@@ -32,6 +32,7 @@ class ImageRestorationEvaluator:
         device: str = "cuda",
         patch_size: int = 256,
         overlap: int = 32,
+        noise_sigma: float = 100.0,
     ):
         """
         Initialize evaluator.
@@ -46,6 +47,7 @@ class ImageRestorationEvaluator:
         self.device = device
         self.patch_size = patch_size
         self.overlap = overlap
+        self.noise_sigma = noise_sigma
 
         self.model.eval()
 
@@ -91,6 +93,7 @@ class ImageRestorationEvaluator:
                 patch_size=self.patch_size,
                 overlap=self.overlap,
                 device=self.device,
+                noise_sigma=self.noise_sigma,
             )
 
         # Move clean tensor to same device as restored for metrics calculation

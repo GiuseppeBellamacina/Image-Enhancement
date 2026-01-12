@@ -64,6 +64,7 @@ def sliding_window_inference(
     patch_size: int = 256,
     overlap: int = 32,
     device: str = "cuda",
+    noise_sigma: Optional[float] = None,
 ) -> torch.Tensor:
     """
     Perform inference on full-resolution image using sliding window approach.
@@ -110,7 +111,10 @@ def sliding_window_inference(
 
                 # Add batch dimension and process
                 patch = patch.unsqueeze(0)
-                restored_patch = model(patch).squeeze(0)
+                if noise_sigma is not None:
+                    restored_patch = model(patch, noise_sigma).squeeze(0)
+                else:
+                    restored_patch = model(patch).squeeze(0)
 
                 # Accumulate with weights
                 output[:, y : y + patch_size, x : x + patch_size] += (

@@ -16,14 +16,14 @@ class DnCNN(nn.Module):
         self, 
         in_channels: int = 3, 
         out_channels: int = 3, 
-        num_layers: int = 17, 
+        num_layers: int = 20, 
         features: int = 64
     ):
         """
         Args:
             in_channels: Number of input channels (3 for RGB)
             out_channels: Number of output channels (3 for RGB)
-            num_layers: Total number of convolutional layers (default: 17)
+            num_layers: Total number of convolutional layers (default: 20)
             features: Number of feature maps in hidden layers (default: 64)
         """
         super(DnCNN, self).__init__()
@@ -70,6 +70,8 @@ class DnCNN(nn.Module):
         )
         
         self.dncnn = nn.Sequential(*layers)
+
+        self._initialize_weights()
     
     def forward(self, x):
         """
@@ -97,10 +99,21 @@ class DnCNN(nn.Module):
         """Conta i parametri addestrabili"""
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                # BN weights inizializzati a 1, bias a 0
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
 
 if __name__ == "__main__":
-    model = DnCNN(in_channels=3, out_channels=3, num_layers=17, features=64)
-    print(f"DnCNN-17 parameters: {model.get_num_params():,}")
+    model = DnCNN(in_channels=3, out_channels=3, num_layers=20, features=64)
+    print(f"DnCNN-20 parameters: {model.get_num_params():,}")
     
     # Test forward pass
     x = torch.randn(4, 3, 128, 128)  # Batch di 4 immagini 128×128

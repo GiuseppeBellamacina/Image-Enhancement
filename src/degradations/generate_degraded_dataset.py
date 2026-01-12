@@ -57,7 +57,7 @@ def generate_degraded_dataset(
         print(f"📦 Degradation: Gaussian Noise (σ={noise_sigma})")
     print(f"💾 Saving to: {output_dir}")
 
-    for img_path in tqdm(image_files, desc="Processing images"):
+    for i, img_path in enumerate(tqdm(image_files, desc="Processing images")):
         # Load image
         img = cv2.imread(str(img_path))
         if img is None:
@@ -67,16 +67,18 @@ def generate_degraded_dataset(
         # Convert BGR to RGB
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
+        per_image_seed = seed + i  # important: different noise per image
+
         # Apply degradation based on type
         if degradation_type == "quantization":
             degraded = apply_quantization_dithering(
                 img_rgb,
                 bits_per_channel=bits_per_channel,
                 dithering_type=dithering_type,
-                seed=seed,
+                seed=per_image_seed,
             )
         elif degradation_type == "gaussian_noise":
-            degraded = add_gaussian_noise(img_rgb, sigma=noise_sigma, seed=seed)
+            degraded = add_gaussian_noise(img_rgb, sigma=noise_sigma, seed=per_image_seed)
         else:
             raise ValueError(f"Unknown degradation type: {degradation_type}")
 

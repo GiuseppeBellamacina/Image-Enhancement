@@ -18,6 +18,7 @@ def train_epoch(
     gradient_clip: float = 1.0,
     scaler: torch.amp.grad_scaler.GradScaler | None = None,
     use_amp: bool = False,
+    noise_sigma: float = 100.0,
 ) -> dict:
     """
     Train the model for one epoch.
@@ -63,7 +64,10 @@ def train_epoch(
             # Forward pass with mixed precision if enabled
             if use_amp and scaler is not None:
                 with autocast(device_type=device):
-                    output = model(degraded)
+                    if noise_sigma is not None:
+                        output = model(degraded, noise_sigma)
+                    else:
+                        output = model(degraded)
                     loss, metrics = criterion(output, clean)
 
                 # Backward pass with gradient scaling
@@ -168,6 +172,7 @@ def validate(
     device: str,
     epoch: int,
     use_amp: bool = False,
+    noise_sigma: float = 100.0,
 ) -> dict:
     """
     Validate the model.
@@ -208,10 +213,16 @@ def validate(
             # Forward pass with mixed precision if enabled
             if use_amp:
                 with autocast(device_type=device):
-                    output = model(degraded)
+                    if noise_sigma is not None:
+                        output = model(degraded, noise_sigma)
+                    else:
+                        output = model(degraded)
                     loss, metrics = criterion(output, clean)
             else:
-                output = model(degraded)
+                if noise_sigma is not None:
+                    output = model(degraded, noise_sigma)
+                else:
+                    output = model(degraded)
                 loss, metrics = criterion(output, clean)
 
             # Update metrics

@@ -26,14 +26,13 @@ def add_gaussian_noise(
         >>> img = cv2.imread('image.jpg')
         >>> noisy = add_gaussian_noise(img, sigma=25)
     """
-    if seed is not None:
-        np.random.seed(seed)
+    rng = np.random.default_rng(seed)
 
-    # Generate Gaussian noise
-    noise = np.random.randn(*image.shape) * sigma
+    image_f = image.astype(np.float32)
+    noise = rng.normal(loc=0.0, scale=float(sigma), size=image.shape).astype(np.float32)
 
     # Add noise to image
-    noisy_image = image + noise
+    noisy_image = image_f + noise
 
     # Clip to valid range
     noisy_image = np.clip(noisy_image, 0, 255).astype(np.uint8)

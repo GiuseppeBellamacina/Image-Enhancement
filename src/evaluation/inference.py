@@ -115,14 +115,16 @@ def sliding_window_inference(
 
                 # Add batch dimension and process
                 patch = patch.unsqueeze(0)
-                
+
                 if residual_learning:
                     # Model predicts noise
                     noise_hat = model(patch)
                     restored_patch = torch.clamp(patch - noise_hat, -1, 1).squeeze(0)
                 else:
                     # Model predicts clean image directly
-                    
+                    # TODO: implementare questa parte
+                    pass
+
                 # Pass noise_sigma to model if provided
                 if noise_sigma is not None:
                     restored_patch = model(patch, noise_sigma=noise_sigma).squeeze(0)

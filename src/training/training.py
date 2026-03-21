@@ -7,7 +7,6 @@ import torch
 from torch.amp.autocast_mode import autocast
 
 from .training_utils import (
-    cleanup_cuda_memory,
     handle_oom_error,
     create_progress_bar,
     apply_gradient_clipping_optimizer,
@@ -49,7 +48,9 @@ def train_epoch(
     running_ssim = 0.0
     running_perceptual = 0.0
 
-    pbar = create_progress_bar(train_loader, epoch, phase="Train", leave=False, position=1)
+    pbar = create_progress_bar(
+        train_loader, epoch, phase="Train", leave=False, position=1
+    )
 
     for batch_idx, (degraded, clean) in enumerate(pbar):
         output = None
@@ -72,10 +73,7 @@ def train_epoch(
 
                 # Gradient clipping (unscale first for proper clipping)
                 apply_gradient_clipping_optimizer(
-                    optimizer,
-                    model.parameters(),
-                    max_norm=gradient_clip,
-                    scaler=scaler
+                    optimizer, model.parameters(), max_norm=gradient_clip, scaler=scaler
                 )
 
                 # Optimizer step with scaler
@@ -125,7 +123,7 @@ def train_epoch(
                     clean,
                     output,
                     loss,
-                    is_training=True
+                    is_training=True,
                 )
             else:
                 # Re-raise non-OOM RuntimeErrors
@@ -221,7 +219,7 @@ def validate(
                     clean,
                     output,
                     loss,
-                    is_training=False
+                    is_training=False,
                 )
             else:
                 # Re-raise non-OOM RuntimeErrors

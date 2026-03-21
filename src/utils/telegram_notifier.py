@@ -75,21 +75,21 @@ def format_training_start_message(
     """
     status = "RESUMING" if resume_from_epoch > 0 else "STARTING"
     emoji = "🔄" if resume_from_epoch > 0 else "🚀"
-    
+
     # Handle learning rate (single or dual for GANs)
-    lr_g = config.get('learning_rate_G')
-    lr_d = config.get('learning_rate_D')
-    lr_single = config.get('learning_rate')
-    
+    lr_g = config.get("learning_rate_G")
+    lr_d = config.get("learning_rate_D")
+    lr_single = config.get("learning_rate")
+
     if lr_g is not None and lr_d is not None:
         lr_str = f"G={lr_g:.2e}, D={lr_d:.2e}"
     elif lr_single is not None:
         lr_str = f"{lr_single:.2e}"
     else:
         lr_str = "N/A"
-    
+
     # Handle weight decay
-    wd = config.get('weight_decay')
+    wd = config.get("weight_decay")
     wd_str = f"{wd:.2e}" if wd is not None else "N/A"
 
     message = f"""{emoji} TRAINING {status} {emoji}

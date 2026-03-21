@@ -77,10 +77,7 @@ def generate_degraded_dataset(
             )
         elif degradation_type == "gaussian_noise":
             degraded = add_gaussian_noise(
-                img_rgb, 
-                sigma=noise_sigma, 
-                seed=seed, 
-                image_index=idx
+                img_rgb, sigma=noise_sigma, seed=seed, image_index=idx
             )
         else:
             raise ValueError(f"Unknown degradation type: {degradation_type}")

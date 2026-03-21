@@ -9,10 +9,10 @@ from typing import Union, Optional
 
 
 def add_gaussian_noise(
-    image: np.ndarray, 
-    sigma: Union[int, float] = 25, 
+    image: np.ndarray,
+    sigma: Union[int, float] = 25,
     seed: Optional[int] = None,
-    image_index: Optional[int] = None
+    image_index: Optional[int] = None,
 ) -> np.ndarray:
     """
     Add Gaussian noise to an image.
@@ -37,7 +37,7 @@ def add_gaussian_noise(
         unique_seed = seed
     else:
         unique_seed = None
-    
+
     if unique_seed is not None:
         np.random.seed(unique_seed)
 

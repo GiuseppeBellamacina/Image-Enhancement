@@ -165,7 +165,7 @@ class AttentionUNet(nn.Module):
             trained_noise_sigma: Noise level the model was trained on (for adaptive blending)
         """
         super().__init__()
-        
+
         self.trained_noise_sigma = trained_noise_sigma
 
         self.use_attention = use_attention
@@ -216,13 +216,13 @@ class AttentionUNet(nn.Module):
     def forward(self, x, noise_sigma: Optional[float] = None):
         """
         Forward pass with optional adaptive denoising strength.
-        
+
         Args:
             x: Input tensor (B, C, H, W)
             noise_sigma: Actual noise level in the input (optional)
                 If None, returns full denoising output
                 If provided, automatically applies adaptive blending based on noise ratio
-        
+
         Returns:
             Denoised output tensor
         """
@@ -238,14 +238,14 @@ class AttentionUNet(nn.Module):
         out = self.up3(out, x2)
         out = self.up4(out, x1)
         out = self.outc(out)
-        
+
         # Adaptive blending if noise level is provided
         if noise_sigma is not None:
             # Calculate blending weight: alpha = actual_sigma / trained_sigma
             alpha = min(noise_sigma / self.trained_noise_sigma, 1.0)
             # Blend: lower noise = more denoising, higher noise = keep more input
             out = alpha * x + (1.0 - alpha) * out
-        
+
         return out
 
     def get_num_params(self):

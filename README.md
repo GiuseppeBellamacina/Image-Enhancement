@@ -1,6 +1,6 @@
 # 📸 Image Enhancement with Deep Learning
 
-**Corruption → Restoration → Evaluation**
+## Corruption → Restoration → Evaluation
 
 Progetto di studio e confronto di diversi metodi di **Image Enhancement** attraverso reti neurali convoluzionali e tecniche di degradazione controllata.
 
@@ -26,90 +26,86 @@ Progetto di studio e confronto di diversi metodi di **Image Enhancement** attrav
 
 ## 📁 Struttura della Repository
 
-```
-Image-Enhancement/
-├── data/
-│   ├── raw/                          # Dataset originale DIV2K
-│   │   ├── DIV2K_train_HR/          # 800 immagini training HR
-│   │   └── DIV2K_valid_HR/          # 100 immagini validation HR
-│   └── degraded/                     # Immagini corrotte (auto-generato)
-│       ├── gaussian/                 # Gaussian noise
-│       │   └── sigma_100/           # σ=100
-│       │       ├── DIV2K_train_HR/
-│       │       └── DIV2K_valid_HR/
-│       └── dithering/                # Quantization dithering
-│           └── random/               # Random dithering
-│               ├── 4bit/             # 4-bit quantization
-│               │   ├── DIV2K_train_HR/
-│               │   └── DIV2K_valid_HR/
-│               └── 6bit/             # 6-bit quantization
-│
-├── src/
-│   ├── degradations/                 # Script corruzioni immagini
-│   │   ├── gaussian_noise.py        # Gaussian noise implementation
-│   │   ├── quantization_dithering.py # Quantization + dithering
-│   │   └── generate_degraded_dataset.py # Auto-path generation system
-│   ├── models/                       # Architetture CNN
-│   │   ├── unet.py                  # UNet standard
-│   │   ├── unet_residual.py         # UNet con residual learning
-│   │   └── attention_unet.py        # UNet con attention gates
-│   ├── losses/                       # Funzioni di loss
-│   │   ├── combined_loss.py         # L1 + SSIM
-│   │   └── perceptual_loss.py       # L1 + SSIM + VGG Perceptual
-│   ├── training/                     # Training pipeline
-│   │   ├── dataset.py               # PatchDataset con augmentation
-│   │   ├── training.py              # train_epoch + validate
-│   │   └── trainer.py               # run_training con AMP, warmup, scheduler
-│   ├── evaluation/                   # Valutazione modelli
-│   │   ├── metrics.py               # PSNR, SSIM calculation
-│   │   ├── inference.py             # Sliding window inference
-│   │   └── evaluator.py             # ImageRestorationEvaluator
-│   └── utils/                        # Utility functions
-│       ├── checkpoints.py           # Gestione checkpoint
-│       ├── experiment.py            # Setup esperimenti
-│       ├── paths.py                 # Path management
-│       ├── visualization.py         # Plot utilities
-│       ├── download_dataset.py      # DIV2K downloader
-│       └── telegram_notifier.py     # Notifiche Telegram
-│
-├── experiments/                      # Risultati training
-│   ├── unet/                        # UNet experiments
-│   │   ├── gaussian/                # Gaussian noise restoration
-│   │   │   └── 20260103_135525_bilinear/
-│   │   │       ├── config.json
-│   │   │       ├── history.json
-│   │   │       ├── evaluation_metrics.json
-│   │   │       ├── checkpoints/     # best_model.pth, epoch_*.pth
-│   │   │       ├── samples/         # Immagini di esempio
-│   │   │       ├── restored_images/ # Full-res validation
-│   │   │       └── logs/            # TensorBoard logs
-│   │   └── dithering/               # Dithering restoration
-│   ├── unet_residual/               # UNet Residual experiments
-│   └── attention_unet/              # Attention UNet experiments
-│
-├── notebooks/                        # Jupyter notebooks
-│   ├── test_degradations/           # Test degradation functions
-│   │   ├── test_gaussian_noise.ipynb
-│   │   └── test_quantization_dithering.ipynb
-│   └── test_trainings/              # Training notebooks
-│       ├── unet/
-│       │   ├── gaussian/
-│       │   │   └── unet_gaussian_bilinear.ipynb
-│       │   └── dithering/
-│       │       └── random/
-│       ├── unet_residual/
-│       │   └── gaussian/
-│       │       ├── unet_residual_gaussian_bilinear.ipynb
-│       │       └── unet_residual_gaussian_upsample.ipynb
-│       └── attention_unet/
-│           └── gaussian/
-│               └── attention_unet_gaussian_bilinear.ipynb
-│
-├── requirements.txt                  # Dipendenze Python
-├── pyproject.toml                   # Package configuration
-├── setup.ps1                        # PowerShell setup script
-├── format.ps1                       # Code formatting script
-└── README.md
+```text
+├── 📁 data
+├── 📁 docs
+├── 📁 notebooks
+│   ├── 📁 test_degradations
+│   │   ├── 📄 salt_and_pepper.ipynb
+│   │   ├── 📄 test_gaussian_noise.ipynb
+│   │   └── 📄 test_quantization_dithering.ipynb
+│   └── 📁 test_trainings
+│       ├── 📁 attention_unet
+│       │   └── 📁 gaussian
+│       │       ├── 📄 attention_unet_gaussian_bilinear.ipynb
+│       │       ├── 📄 attention_unet_gaussian_bilinear_bottleneck.ipynb
+│       │       ├── 📄 attention_unet_gaussian_upsample.ipynb
+│       │       └── 📄 attention_unet_gaussian_upsample_bottleneck.ipynb
+│       ├── 📁 pix2pix
+│       │   └── 📁 gaussian
+│       │       └── 📄 pix2pix_gaussian_v1.ipynb
+│       ├── 📁 swin2sr
+│       ├── 📁 unet
+│       │   ├── 📁 dithering
+│       │   │   └── 📁 random
+│       │   │       ├── 📄 unet_random_dithering_bilinear.ipynb
+│       │   │       └── 📄 unet_random_dithering_upsample.ipynb
+│       │   └── 📁 gaussian
+│       │       └── 📄 unet_gaussian_bilinear.ipynb
+│       └── 📁 unet_residual
+│           └── 📁 gaussian
+│               ├── 📄 unet_residual_gaussian_bilinear.ipynb
+│               └── 📄 unet_residual_gaussian_upsample.ipynb
+├── 📁 report_generators
+│   ├── 🐍 generate_comparison_report.py
+│   ├── 🐍 generate_evaluation_concat.py
+│   ├── 🐍 generate_experiment_summaries.py
+│   └── 🐍 generate_hyperparams_metrics.py
+├── 📁 src
+│   ├── 📁 degradations
+│   │   ├── 🐍 __init__.py
+│   │   ├── 🐍 gaussian_noise.py
+│   │   ├── 🐍 generate_degraded_dataset.py
+│   │   ├── 🐍 quantization_dithering.py
+│   │   └── 🐍 salt_and_pepper.py
+│   ├── 📁 evaluation
+│   │   ├── 🐍 __init__.py
+│   │   ├── 🐍 evaluator.py
+│   │   ├── 🐍 inference.py
+│   │   └── 🐍 metrics.py
+│   ├── 📁 losses
+│   │   ├── 🐍 __init__.py
+│   │   ├── 🐍 combined_loss.py
+│   │   └── 🐍 perceptual_loss.py
+│   ├── 📁 models
+│   │   ├── 🐍 __init__.py
+│   │   ├── 🐍 attention_unet.py
+│   │   ├── 🐍 pix2pix.py
+│   │   ├── 🐍 unet.py
+│   │   └── 🐍 unet_residual.py
+│   ├── 📁 training
+│   │   ├── 🐍 __init__.py
+│   │   ├── 🐍 dataset.py
+│   │   ├── 🐍 trainer.py
+│   │   ├── 🐍 training.py
+│   │   ├── 🐍 training_pix2pix.py
+│   │   └── 🐍 training_utils.py
+│   └── 📁 utils
+│       ├── 🐍 __init__.py
+│       ├── 🐍 checkpoints.py
+│       ├── 🐍 download_dataset.py
+│       ├── 🐍 experiment.py
+│       ├── 🐍 paths.py
+│       ├── 🐍 telegram_notifier.py
+│       └── 🐍 visualization.py
+├── ⚙️ .env.example
+├── ⚙️ .gitignore
+├── 📄 LICENSE
+├── 📝 README.md
+├── 📄 format.ps1
+├── ⚙️ pyproject.toml
+├── 📄 requirements.txt
+└── 📄 setup.ps1
 ```
 
 ---
@@ -142,12 +138,13 @@ Quantizzazione del colore con diversi livelli di bit depth + dithering.
 - Training: immagini ditherate → originali clean
 
 ### ✅ **Salt & Pepper noise**
+
 **Implementazione:**
+
 - densità variabile
 - rapporto salt/pepper variabile
 
 ### 🔜 Future Degradations (Planned)
-
 
 - **Gaussian blur** / **Motion blur** (kernel size variabile)
 - **JPEG compression artifacts** (quality: 30, 50, 70, 90)
@@ -426,7 +423,7 @@ pip install -r requirements.txt
 
 **Storage:**
 
-```
+```text
 data/raw/
 ├── DIV2K_train_HR/  # 800 images
 └── DIV2K_valid_HR/  # 100 images
@@ -654,9 +651,15 @@ Visualizza:
 
 ---
 
-## 👥 Author
+## 👥 Authors
 
-**Giuseppe Bellamacina**
+### Giuseppe Bellamacina
+
+### Daniele Barbagallo
+
+### Salvatore Iurato
+
+### Mattia Campanella
 
 Progetto sviluppato per il corso di **Deep Learning** — A.A. 2025/2026
 
@@ -666,7 +669,7 @@ Progetto sviluppato per il corso di **Deep Learning** — A.A. 2025/2026
 
 MIT License
 
-Copyright (c) 2025 Giuseppe Bellamacina
+Copyright (c) 2025 Giuseppe Bellamacina, Daniele Barbagallo, Salvatore Iurato, Mattia Campanella
 
 ---
 

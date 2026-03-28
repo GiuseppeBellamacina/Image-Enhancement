@@ -67,13 +67,15 @@ def generate_degraded_dataset(
         # Convert BGR to RGB
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
+        per_image_seed = seed + i  # important: different noise per image
+
         # Apply degradation based on type
         if degradation_type == "quantization":
             degraded = apply_quantization_dithering(
                 img_rgb,
                 bits_per_channel=bits_per_channel,
                 dithering_type=dithering_type,
-                seed=seed,
+                seed=per_image_seed,
             )
         elif degradation_type == "gaussian_noise":
             degraded = add_gaussian_noise(

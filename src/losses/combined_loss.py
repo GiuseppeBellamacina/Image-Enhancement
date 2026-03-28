@@ -40,9 +40,12 @@ class CombinedLoss(nn.Module):
         # L1 loss
         l1 = self.l1_loss(pred, target)
 
+        pred_clamped = torch.clamp(pred, -1.0, 1.0)
+        target_clamped = torch.clamp(target, -1.0, 1.0)
+
         # SSIM loss (convert to 0-1 range for SSIM calculation)
-        pred_01 = (pred + 1) / 2  # [-1, 1] -> [0, 1]
-        target_01 = (target + 1) / 2
+        pred_01 = (pred_clamped + 1) / 2  # [-1, 1] -> [0, 1]
+        target_01 = (target_clamped + 1) / 2
         ssim_val = self.ssim_loss(pred_01, target_01)
         ssim_loss = 1 - ssim_val  # Convert to loss (lower is better)
 

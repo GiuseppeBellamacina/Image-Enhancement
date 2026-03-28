@@ -8,6 +8,7 @@ from .attention_unet import AttentionUNet
 from .pix2pix import Pix2PixGenerator, PatchGANDiscriminator
 
 # from .dncnn import DnCNN
+# from .ridnet import RIDNet
 # from .autoencoder import Autoencoder
 
 __all__ = [

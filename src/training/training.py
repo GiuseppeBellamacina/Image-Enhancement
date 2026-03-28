@@ -13,6 +13,12 @@ from .training_utils import (
 )
 
 
+def _forward_with_sigma(model: torch.nn.Module, x: torch.Tensor, noise_sigma: float | None):
+    if noise_sigma is None:
+        return model(x)
+    return model(x, sigma=noise_sigma)
+
+
 def train_epoch(
     model: torch.nn.Module,
     train_loader: torch.utils.data.DataLoader,
@@ -23,6 +29,7 @@ def train_epoch(
     gradient_clip: float = 1.0,
     scaler: torch.amp.grad_scaler.GradScaler | None = None,
     use_amp: bool = False,
+    noise_sigma: float = 100.0,
 ) -> dict:
     """
     Train the model for one epoch.
@@ -62,13 +69,11 @@ def train_epoch(
 
             optimizer.zero_grad()
 
-            # Forward pass with mixed precision if enabled
             if use_amp and scaler is not None:
                 with autocast(device_type=device):
-                    output = model(degraded)
+                    output = _forward_with_sigma(model, degraded, noise_sigma)
                     loss, metrics = criterion(output, clean)
 
-                # Backward pass with gradient scaling
                 scaler.scale(loss).backward()
 
                 # Gradient clipping (unscale first for proper clipping)
@@ -80,18 +85,11 @@ def train_epoch(
                 scaler.step(optimizer)
                 scaler.update()
             else:
-                # Standard training without mixed precision
-                output = model(degraded)
+                output = _forward_with_sigma(model, degraded, noise_sigma)
                 loss, metrics = criterion(output, clean)
 
-                # Backward pass
                 loss.backward()
-
-                # Gradient clipping
-                torch.nn.utils.clip_grad_norm_(
-                    model.parameters(), max_norm=gradient_clip
-                )
-
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=gradient_clip)
                 optimizer.step()
 
             # Update metrics
@@ -150,6 +148,7 @@ def validate(
     device: str,
     epoch: int,
     use_amp: bool = False,
+    noise_sigma: float = 100.0,
 ) -> dict:
     """
     Validate the model.
@@ -182,13 +181,12 @@ def validate(
             degraded = degraded.to(device)
             clean = clean.to(device)
 
-            # Forward pass with mixed precision if enabled
             if use_amp:
                 with autocast(device_type=device):
-                    output = model(degraded)
+                    output = _forward_with_sigma(model, degraded, noise_sigma)
                     loss, metrics = criterion(output, clean)
             else:
-                output = model(degraded)
+                output = _forward_with_sigma(model, degraded, noise_sigma)
                 loss, metrics = criterion(output, clean)
 
             # Update metrics

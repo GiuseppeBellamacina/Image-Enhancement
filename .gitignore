@@ -35,15 +35,10 @@ venv.bak/
 .env
 .env.local
 
-# UV
-uv.lock
-.python-version
-
 # ruff
 .ruff_cache/
 
 # IDE
-.vscode/
 .idea/
 *.swp
 *.swo

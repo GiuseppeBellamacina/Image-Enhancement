@@ -5,7 +5,12 @@ Training and validation loop utilities
 
 import torch
 from torch.amp.autocast_mode import autocast
-from tqdm.auto import tqdm
+
+from .training_utils import (
+    handle_oom_error,
+    create_progress_bar,
+    apply_gradient_clipping_optimizer,
+)
 
 
 def _forward_with_sigma(model: torch.nn.Module, x: torch.Tensor, noise_sigma: float | None):
@@ -48,13 +53,10 @@ def train_epoch(
     running_loss = 0.0
     running_l1 = 0.0
     running_ssim = 0.0
+    running_perceptual = 0.0
 
-    pbar = tqdm(
-        train_loader,
-        desc=f"Epoch {epoch} [Train]",
-        leave=False,
-        position=1,
-        bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}] {postfix}",
+    pbar = create_progress_bar(
+        train_loader, epoch, phase="Train", leave=False, position=1
     )
 
     for batch_idx, (degraded, clean) in enumerate(pbar):
@@ -73,8 +75,13 @@ def train_epoch(
                     loss, metrics = criterion(output, clean)
 
                 scaler.scale(loss).backward()
-                scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=gradient_clip)
+
+                # Gradient clipping (unscale first for proper clipping)
+                apply_gradient_clipping_optimizer(
+                    optimizer, model.parameters(), max_norm=gradient_clip, scaler=scaler
+                )
+
+                # Optimizer step with scaler
                 scaler.step(optimizer)
                 scaler.update()
             else:
@@ -89,53 +96,32 @@ def train_epoch(
             running_loss += metrics["total"]
             running_l1 += metrics["l1"]
             running_ssim += metrics["ssim"]
+            if "perceptual" in metrics:
+                running_perceptual += metrics["perceptual"]
 
-            # Update progress bar
-            pbar.set_postfix(
-                {
-                    "loss": f"{metrics['total']:.4f}",
-                    "l1": f"{metrics['l1']:.4f}",
-                    "ssim": f"{metrics['ssim']:.3f}",
-                }
-            )
+            # Update progress bar (include perceptual if available)
+            postfix = {
+                "loss": f"{metrics['total']:.4f}",
+                "l1": f"{metrics['l1']:.4f}",
+                "ssim": f"{metrics['ssim']:.3f}",
+            }
+            if "perceptual" in metrics and metrics["perceptual"] > 0:
+                postfix["perceptual"] = f"{metrics['perceptual']:.4f}"
+            pbar.set_postfix(postfix)
 
         except (torch.cuda.OutOfMemoryError, RuntimeError) as e:
             # Check if it's an OOM error
             if "out of memory" in str(e).lower():
                 pbar.close()
-                print(
-                    f"\n❌ CUDA Out of Memory at batch {batch_idx + 1}/{len(train_loader)}!"
-                )
-                print("   Attempting recovery...")
-
-                # Clear CUDA cache
-                if device == "cuda":
-                    torch.cuda.empty_cache()
-                    torch.cuda.synchronize()
-                    print("   ✅ CUDA cache cleared")
-
-                # Free batch memory
-                del degraded, clean
-                if output is not None:
-                    del output
-                if loss is not None:
-                    del loss
-
-                print("\n⚠️  OOM ERROR DETECTED - TRAINING HALTED")
-                print("   Suggestions to prevent OOM:")
-                print("   1. Reduce batch_size (currently using batch in this epoch)")
-                print("   2. Reduce patch_size in config")
-                print("   3. Enable mixed precision if not already active")
-                print("   4. Reduce model_features in config")
-                print("\n   The training state has been saved.")
-                print(
-                    "   You can resume from the last checkpoint after adjusting config."
-                )
-
-                # Re-raise to be caught by run_training
-                raise torch.cuda.OutOfMemoryError(
-                    f"CUDA OOM during training at batch {batch_idx + 1}. "
-                    "Reduce batch_size or patch_size and resume training."
+                handle_oom_error(
+                    batch_idx,
+                    len(train_loader),
+                    device,
+                    degraded,
+                    clean,
+                    output,
+                    loss,
+                    is_training=True,
                 )
             else:
                 # Re-raise non-OOM RuntimeErrors
@@ -148,6 +134,8 @@ def train_epoch(
         "l1": running_l1 / n_batches,
         "ssim": running_ssim / n_batches,
     }
+    if running_perceptual > 0:
+        avg_metrics["perceptual"] = running_perceptual / n_batches
 
     return avg_metrics
 
@@ -181,14 +169,9 @@ def validate(
     running_loss = 0.0
     running_l1 = 0.0
     running_ssim = 0.0
+    running_perceptual = 0.0
 
-    pbar = tqdm(
-        val_loader,
-        desc=f"Epoch {epoch} [Val]",
-        leave=False,
-        position=1,
-        bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}] {postfix}",
-    )
+    pbar = create_progress_bar(val_loader, epoch, phase="Val", leave=False, position=1)
 
     for batch_idx, (degraded, clean) in enumerate(pbar):
         output = None
@@ -210,37 +193,31 @@ def validate(
             running_loss += metrics["total"]
             running_l1 += metrics["l1"]
             running_ssim += metrics["ssim"]
+            if "perceptual" in metrics:
+                running_perceptual += metrics["perceptual"]
 
-            # Update progress bar
-            pbar.set_postfix(
-                {"loss": f"{metrics['total']:.4f}", "ssim": f"{metrics['ssim']:.3f}"}
-            )
+            # Update progress bar (include perceptual if available)
+            postfix = {
+                "loss": f"{metrics['total']:.4f}",
+                "ssim": f"{metrics['ssim']:.3f}",
+            }
+            if "perceptual" in metrics and metrics["perceptual"] > 0:
+                postfix["perceptual"] = f"{metrics['perceptual']:.4f}"
+            pbar.set_postfix(postfix)
 
         except (torch.cuda.OutOfMemoryError, RuntimeError) as e:
             # Check if it's an OOM error
             if "out of memory" in str(e).lower():
                 pbar.close()
-                print(
-                    f"\n❌ CUDA Out of Memory during validation at batch {batch_idx + 1}/{len(val_loader)}!"
-                )
-                print("   Attempting recovery...")
-
-                # Clear CUDA cache
-                if device == "cuda":
-                    torch.cuda.empty_cache()
-                    torch.cuda.synchronize()
-                    print("   ✅ CUDA cache cleared")
-
-                # Free batch memory
-                del degraded, clean
-                if output is not None:
-                    del output
-                if loss is not None:
-                    del loss
-
-                # Re-raise to be caught by run_training
-                raise torch.cuda.OutOfMemoryError(
-                    f"CUDA OOM during validation at batch {batch_idx + 1}. Reduce batch_size."
+                handle_oom_error(
+                    batch_idx,
+                    len(val_loader),
+                    device,
+                    degraded,
+                    clean,
+                    output,
+                    loss,
+                    is_training=False,
                 )
             else:
                 # Re-raise non-OOM RuntimeErrors
@@ -253,5 +230,7 @@ def validate(
         "l1": running_l1 / n_batches,
         "ssim": running_ssim / n_batches,
     }
+    if running_perceptual > 0:
+        avg_metrics["perceptual"] = running_perceptual / n_batches
 
     return avg_metrics

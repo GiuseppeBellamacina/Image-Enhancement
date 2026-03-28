@@ -11,6 +11,34 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+class DropPath(nn.Module):
+    """Stochastic Depth (Drop Path) regularization.
+
+    During training, randomly drops entire residual branches with probability
+    ``drop_prob``, scaling surviving paths by ``1 / (1 - drop_prob)`` to keep
+    the expected value unchanged. Disabled at eval time.
+
+    This is the standard technique recommended by the NAFNet / ConvNeXt papers
+    to prevent overfitting, especially on smaller datasets like DIV2K.
+    """
+
+    def __init__(self, drop_prob: float = 0.0):
+        super().__init__()
+        self.drop_prob = drop_prob
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.drop_prob == 0.0 or not self.training:
+            return x
+        keep_prob = 1.0 - self.drop_prob
+        # one random value per sample, broadcast over all spatial/channel dims
+        shape = (x.shape[0],) + (1,) * (x.ndim - 1)
+        mask = torch.rand(shape, dtype=x.dtype, device=x.device).floor_().add_(keep_prob).clamp_(max=1.0)
+        return x / keep_prob * mask
+
+    def extra_repr(self) -> str:
+        return f"drop_prob={self.drop_prob:.3f}"
+
+
 class LayerNorm2d(nn.Module):
     """Channel-wise layer normalization for 2D feature maps."""
 
@@ -44,6 +72,7 @@ class NAFBlock(nn.Module):
         dw_expand: int = 2,
         ffn_expand: int = 2,
         drop_out_rate: float = 0.0,
+        drop_path_rate: float = 0.0,
     ):
         super().__init__()
 
@@ -81,6 +110,9 @@ class NAFBlock(nn.Module):
             nn.Dropout(drop_out_rate) if drop_out_rate > 0.0 else nn.Identity()
         )
 
+        # Stochastic Depth: drops the entire residual branch during training
+        self.drop_path = DropPath(drop_path_rate) if drop_path_rate > 0.0 else nn.Identity()
+
         self.beta = nn.Parameter(torch.zeros((1, channels, 1, 1)), requires_grad=True)
         self.gamma = nn.Parameter(torch.zeros((1, channels, 1, 1)), requires_grad=True)
 
@@ -94,14 +126,14 @@ class NAFBlock(nn.Module):
         x = self.conv3(x)
 
         x = self.dropout1(x)
-        y = inp + x * self.beta
+        y = inp + self.drop_path(x * self.beta)
 
         x = self.conv4(self.norm2(y))
         x = self.sg(x)
         x = self.conv5(x)
 
         x = self.dropout2(x)
-        return y + x * self.gamma
+        return y + self.drop_path(x * self.gamma)
 
 
 class NAFNet(nn.Module):
@@ -117,6 +149,8 @@ class NAFNet(nn.Module):
         dw_expand: Expansion factor for depthwise branch.
         ffn_expand: Expansion factor for FFN branch.
         drop_out_rate: Dropout probability inside each block.
+        drop_path_rate: Maximum stochastic depth rate (linearly increases
+            from 0 at the shallowest block to this value at the deepest).
     """
 
     def __init__(
@@ -129,6 +163,7 @@ class NAFNet(nn.Module):
         dw_expand: int = 2,
         ffn_expand: int = 2,
         drop_out_rate: float = 0.0,
+        drop_path_rate: float = 0.0,
     ):
         super().__init__()
 
@@ -143,6 +178,10 @@ class NAFNet(nn.Module):
         self.downs = nn.ModuleList()
         self.ups = nn.ModuleList()
 
+        # Compute total number of blocks to distribute drop path rates linearly
+        total_blocks = sum(enc_blk_nums) + middle_blk_num + sum(dec_blk_nums)
+        block_idx = 0  # running counter across the whole network
+
         chan = width
         for n_blocks in enc_blk_nums:
             self.encoders.append(
@@ -153,11 +192,13 @@ class NAFNet(nn.Module):
                             dw_expand=dw_expand,
                             ffn_expand=ffn_expand,
                             drop_out_rate=drop_out_rate,
+                            drop_path_rate=drop_path_rate * (block_idx + i) / max(total_blocks - 1, 1),
                         )
-                        for _ in range(n_blocks)
+                        for i in range(n_blocks)
                     ]
                 )
             )
+            block_idx += n_blocks
             self.downs.append(nn.Conv2d(chan, 2 * chan, kernel_size=2, stride=2))
             chan *= 2
 
@@ -168,10 +209,12 @@ class NAFNet(nn.Module):
                     dw_expand=dw_expand,
                     ffn_expand=ffn_expand,
                     drop_out_rate=drop_out_rate,
+                    drop_path_rate=drop_path_rate * (block_idx + i) / max(total_blocks - 1, 1),
                 )
-                for _ in range(middle_blk_num)
+                for i in range(middle_blk_num)
             ]
         )
+        block_idx += middle_blk_num
 
         for n_blocks in dec_blk_nums:
             self.ups.append(
@@ -189,11 +232,13 @@ class NAFNet(nn.Module):
                             dw_expand=dw_expand,
                             ffn_expand=ffn_expand,
                             drop_out_rate=drop_out_rate,
+                            drop_path_rate=drop_path_rate * (block_idx + i) / max(total_blocks - 1, 1),
                         )
-                        for _ in range(n_blocks)
+                        for i in range(n_blocks)
                     ]
                 )
             )
+            block_idx += n_blocks
 
         self.padder_size = 2 ** len(self.encoders)
 
@@ -235,6 +280,7 @@ class NAFNet(nn.Module):
 
 def test_nafnet() -> None:
     """Quick sanity test for NAFNet forward pass."""
+    # Test without stochastic depth
     model = NAFNet(img_channel=3, width=32)
     x = torch.randn(2, 3, 128, 128)
 
@@ -245,6 +291,21 @@ def test_nafnet() -> None:
     print(f"Output shape: {y.shape}")
     print(f"Parameters: {model.get_num_params():,}")
     assert y.shape == x.shape, "Output shape mismatch"
+
+    # Test with stochastic depth
+    model_sd = NAFNet(img_channel=3, width=32, drop_path_rate=0.1)
+    model_sd.train()
+    y_train = model_sd(x)
+    model_sd.eval()
+    with torch.no_grad():
+        y_eval = model_sd(x)
+
+    print(f"\nWith drop_path_rate=0.1:")
+    print(f"  Train output shape: {y_train.shape}")
+    print(f"  Eval output shape:  {y_eval.shape}")
+    assert y_train.shape == x.shape, "Train output shape mismatch"
+    assert y_eval.shape == x.shape, "Eval output shape mismatch"
+    print("✅ Stochastic Depth test passed!")
 
 
 if __name__ == "__main__":

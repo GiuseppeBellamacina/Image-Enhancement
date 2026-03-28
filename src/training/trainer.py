@@ -286,7 +286,12 @@ def run_training(
 
             # Update learning rate
             if epoch > warmup_epochs and scheduler:
-                scheduler.step()
+                if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                    # Use validation loss for ReduceLROnPlateau
+                    if val_metrics:
+                        scheduler.step(val_metrics["loss"])
+                else:
+                    scheduler.step()
 
             current_lr = optimizer.param_groups[0]["lr"]
 

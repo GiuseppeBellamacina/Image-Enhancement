@@ -8,6 +8,12 @@ from torch.amp.autocast_mode import autocast
 from tqdm.auto import tqdm
 
 
+def _forward_with_sigma(model: torch.nn.Module, x: torch.Tensor, noise_sigma: float | None):
+    if noise_sigma is None:
+        return model(x)
+    return model(x, sigma=noise_sigma)
+
+
 def train_epoch(
     model: torch.nn.Module,
     train_loader: torch.utils.data.DataLoader,
@@ -61,40 +67,22 @@ def train_epoch(
 
             optimizer.zero_grad()
 
-            # Forward pass with mixed precision if enabled
             if use_amp and scaler is not None:
                 with autocast(device_type=device):
-                    if noise_sigma is not None:
-                        output = model(degraded, noise_sigma)
-                    else:
-                        output = model(degraded)
+                    output = _forward_with_sigma(model, degraded, noise_sigma)
                     loss, metrics = criterion(output, clean)
 
-                # Backward pass with gradient scaling
                 scaler.scale(loss).backward()
-
-                # Gradient clipping (unscale first for proper clipping)
                 scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(
-                    model.parameters(), max_norm=gradient_clip
-                )
-
-                # Optimizer step with scaler
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=gradient_clip)
                 scaler.step(optimizer)
                 scaler.update()
             else:
-                # Standard training without mixed precision
-                output = model(degraded)
+                output = _forward_with_sigma(model, degraded, noise_sigma)
                 loss, metrics = criterion(output, clean)
 
-                # Backward pass
                 loss.backward()
-
-                # Gradient clipping
-                torch.nn.utils.clip_grad_norm_(
-                    model.parameters(), max_norm=gradient_clip
-                )
-
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=gradient_clip)
                 optimizer.step()
 
             # Update metrics
@@ -210,19 +198,12 @@ def validate(
             degraded = degraded.to(device)
             clean = clean.to(device)
 
-            # Forward pass with mixed precision if enabled
             if use_amp:
                 with autocast(device_type=device):
-                    if noise_sigma is not None:
-                        output = model(degraded, noise_sigma)
-                    else:
-                        output = model(degraded)
+                    output = _forward_with_sigma(model, degraded, noise_sigma)
                     loss, metrics = criterion(output, clean)
             else:
-                if noise_sigma is not None:
-                    output = model(degraded, noise_sigma)
-                else:
-                    output = model(degraded)
+                output = _forward_with_sigma(model, degraded, noise_sigma)
                 loss, metrics = criterion(output, clean)
 
             # Update metrics

@@ -9,6 +9,55 @@ from pathlib import Path
 from typing import Optional, Union
 
 
+def _nonfinite_tensor_paths(obj, prefix: str = "") -> list[str]:
+    """Return dot-paths to floating-point tensors that contain NaN or Inf."""
+    out: list[str] = []
+    if torch.is_tensor(obj):
+        if obj.is_floating_point() and not torch.isfinite(obj).all():
+            out.append(prefix or "<root>")
+    elif isinstance(obj, dict):
+        for k, v in obj.items():
+            p = f"{prefix}.{k}" if prefix else str(k)
+            out.extend(_nonfinite_tensor_paths(v, p))
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            p = f"{prefix}[{i}]" if prefix else f"[{i}]"
+            out.extend(_nonfinite_tensor_paths(v, p))
+    return out
+
+
+def assert_checkpoint_finite(checkpoint: dict, *, check_optimizer: bool) -> None:
+    """
+    Raise ValueError if checkpoint tensors contain NaN/Inf.
+
+    Corrupted training (e.g. numerical blow-up) can save non-finite weights; loading
+    them produces NaN metrics immediately and wastes compute.
+    """
+    model_paths = _nonfinite_tensor_paths(checkpoint.get("model_state_dict", {}), "model")
+    if model_paths:
+        sample = model_paths[:15]
+        more = f" ... (+{len(model_paths) - 15} more)" if len(model_paths) > 15 else ""
+        raise ValueError(
+            "Checkpoint model_state_dict contains NaN or Inf. The file is unusable.\n"
+            f"  Affected keys (sample): {sample}{more}\n"
+            "  Use an earlier checkpoint (e.g. checkpoint_epoch_*.pth from before the "
+            "divergence), or train from scratch. Do not resume from this file."
+        )
+
+    if check_optimizer and checkpoint.get("optimizer_state_dict") is not None:
+        opt_paths = _nonfinite_tensor_paths(
+            checkpoint["optimizer_state_dict"], "optimizer"
+        )
+        if opt_paths:
+            sample = opt_paths[:15]
+            more = f" ... (+{len(opt_paths) - 15} more)" if len(opt_paths) > 15 else ""
+            raise ValueError(
+                "Checkpoint optimizer_state_dict contains NaN or Inf.\n"
+                f"  Affected keys (sample): {sample}{more}\n"
+                "  Use an earlier checkpoint or restart training without loading this optimizer state."
+            )
+
+
 def save_checkpoint(
     model: torch.nn.Module,
     optimizer: torch.optim.Optimizer,
@@ -67,6 +116,10 @@ def load_checkpoint(
         Dictionary containing epoch and metrics from checkpoint
     """
     checkpoint = torch.load(filepath, map_location=device)
+
+    assert_checkpoint_finite(
+        checkpoint, check_optimizer=optimizer is not None
+    )
 
     # Load model state
     model.load_state_dict(checkpoint["model_state_dict"])

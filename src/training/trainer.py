@@ -40,6 +40,7 @@ def run_training(
     checkpoints_dir: Path,
     writer: SummaryWriter,
     warmup_epochs: int = 0,
+    warmup_start_lr: float | None = None,
     learning_rate: float = 1e-4,
     patience: int = 5,
     save_every: int = 5,
@@ -68,7 +69,9 @@ def run_training(
         checkpoints_dir: Directory to save checkpoints
         writer: TensorBoard SummaryWriter
         warmup_epochs: Number of warmup epochs for learning rate
-        learning_rate: Initial learning rate (used for warmup)
+        warmup_start_lr: If set, linear LR warmup from this value to learning_rate
+            over epochs 1..warmup_epochs. If None, uses learning_rate * epoch / warmup_epochs.
+        learning_rate: Target LR after warmup (and max LR during default linear warmup)
         patience: Patience for early stopping
         save_every: Save checkpoint every N epochs
         val_every: Validate every N epochs
@@ -245,7 +248,16 @@ def run_training(
 
             # Learning rate warmup (only if not already completed in previous training)
             if epoch <= warmup_epochs and start_epoch <= warmup_epochs:
-                lr = learning_rate * epoch / warmup_epochs
+                if warmup_epochs <= 0:
+                    lr = learning_rate
+                elif warmup_start_lr is not None:
+                    if warmup_epochs == 1:
+                        lr = learning_rate
+                    else:
+                        t = (epoch - 1) / (warmup_epochs - 1)
+                        lr = warmup_start_lr + (learning_rate - warmup_start_lr) * t
+                else:
+                    lr = learning_rate * epoch / warmup_epochs
                 for param_group in optimizer.param_groups:
                     param_group["lr"] = lr
 

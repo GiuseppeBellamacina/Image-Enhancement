@@ -43,7 +43,7 @@ def train_epoch(
         epoch: Current epoch number (for progress display)
         gradient_clip: Maximum gradient norm for clipping
         scaler: GradScaler for mixed precision training (optional)
-        use_amp: Whether to use automatic mixed precision
+        use_amp: Whether to use automatic mixed precision (loss is still computed in float32 when AMP is on).
 
     Returns:
         Dictionary with average metrics: {'loss', 'l1', 'ssim'}
@@ -70,9 +70,10 @@ def train_epoch(
             optimizer.zero_grad()
 
             if use_amp and scaler is not None:
+                # Forward in mixed precision; loss (L1 + SSIM) in float32 — SSIM in fp16 often yields NaN.
                 with autocast(device_type=device):
                     output = _forward_with_sigma(model, degraded, noise_sigma)
-                    loss, metrics = criterion(output, clean)
+                loss, metrics = criterion(output, clean)
 
                 scaler.scale(loss).backward()
 
@@ -159,7 +160,8 @@ def validate(
         criterion: Loss function
         device: Device to run validation on ('cuda' or 'cpu')
         epoch: Current epoch number (for progress display)
-        use_amp: Whether to use automatic mixed precision
+        use_amp: Ignored for validation. The forward pass always runs in full precision so that
+            BatchNorm in eval() and loss metrics stay numerically stable while training may still use AMP.
 
     Returns:
         Dictionary with average metrics: {'loss', 'l1', 'ssim'}
@@ -181,13 +183,10 @@ def validate(
             degraded = degraded.to(device)
             clean = clean.to(device)
 
-            if use_amp:
-                with autocast(device_type=device):
-                    output = _forward_with_sigma(model, degraded, noise_sigma)
-                    loss, metrics = criterion(output, clean)
-            else:
-                output = _forward_with_sigma(model, degraded, noise_sigma)
-                loss, metrics = criterion(output, clean)
+            # Always full-precision forward on val: with AMP, train often stays stable while
+            # eval()+BatchNorm+fp16 produces NaN losses; val is cheap vs train.
+            output = _forward_with_sigma(model, degraded, noise_sigma)
+            loss, metrics = criterion(output, clean)
 
             # Update metrics
             running_loss += metrics["total"]

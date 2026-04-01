@@ -62,84 +62,85 @@ def sliding_window_inference(
     model: nn.Module,
     image: torch.Tensor,
     patch_size: int = 256,
-    overlap: int = 32,
+    overlap: int = 64,
     device: str = "cuda",
     residual_learning: bool = False,
     noise_sigma: Optional[float] = None,
+    use_amp: bool = False,
 ) -> torch.Tensor:
-    """
-    Perform inference on full-resolution image using sliding window approach.
+    """Perform inference on a full-resolution image using sliding window.
+
+    Splits the image into overlapping patches, runs each through the model,
+    and blends them back together using a Hann window to avoid seam artifacts.
+
+    The model is assumed to directly output the restored image (as NAFNet
+    does with its global residual connection ``output = model(input) + input``),
+    unless ``residual_learning=True``, in which case the output is assumed to be noise.
 
     Args:
-        model: Trained model for restoration
-        image: Input image tensor (C, H, W) in range [-1, 1]
-        patch_size: Size of patches to process
-        overlap: Overlap between adjacent patches (for smooth blending)
-        device: Device to run inference on
-        residual_learning: If True, model predicts noise and output is image - noise_hat
-        noise_sigma: Actual noise level in the input (optional)
-            If provided and model supports it, enables adaptive blending
+        model: Trained restoration model.
+        image: Input image tensor ``(C, H, W)`` in range ``[-1, 1]``.
+        patch_size: Size of square patches to process.
+        overlap: Overlap between adjacent patches (recommend ≥ patch_size // 4).
+        device: Device to run inference on.
+        use_amp: Whether to use automatic mixed precision for faster inference.
+        residual_learning: Whether model predicts noise instead of clean image directly.
+        noise_sigma: Optional noise level to pass to the model.
 
     Returns:
-        Restored image tensor (C, H, W) in range [-1, 1]
+        Restored image tensor ``(C, H, W)`` in range ``[-1, 1]``.
     """
     C, H, W = image.shape
-
-    # Move image to device
     image = image.to(device)
 
-    # Calculate stride (patch_size - overlap)
     stride = patch_size - overlap
 
-    # Initialize output tensor and weight map for blending
+    # Output accumulator and weight map
     output = torch.zeros_like(image)
     weights = torch.zeros((H, W), device=device)
 
-    # Create weight window for smooth blending (higher weight at center)
+    # Hann blending window — cosine taper avoids hard edges
     window = create_blend_window(patch_size, device)
 
-    # Calculate number of patches needed
-    n_patches_h = (H - overlap + stride - 1) // stride
-    n_patches_w = (W - overlap + stride - 1) // stride
+    # Number of patches along each axis
+    n_patches_h = max(1, (H - overlap + stride - 1) // stride)
+    n_patches_w = max(1, (W - overlap + stride - 1) // stride)
 
     model.eval()
     with torch.no_grad():
         for i in range(n_patches_h):
             for j in range(n_patches_w):
-                # Calculate patch coordinates
                 y = min(i * stride, H - patch_size)
                 x = min(j * stride, W - patch_size)
 
-                # Extract patch
-                patch = image[:, y : y + patch_size, x : x + patch_size]
+                patch = image[:, y : y + patch_size, x : x + patch_size].unsqueeze(0)
 
-                # Add batch dimension and process
-                patch = patch.unsqueeze(0)
+                # Forward pass
+                if use_amp and device == "cuda":
+                    with torch.amp.autocast(device_type="cuda"):
+                        if noise_sigma is not None:
+                            model_out = model(patch, noise_sigma).squeeze(0)
+                        else:
+                            model_out = model(patch).squeeze(0)
+                else:
+                    if noise_sigma is not None:
+                        model_out = model(patch, noise_sigma).squeeze(0)
+                    else:
+                        model_out = model(patch).squeeze(0)
 
                 if residual_learning:
-                    # Model predicts noise
-                    noise_hat = model(patch)
-                    restored_patch = torch.clamp(patch - noise_hat, -1, 1).squeeze(0)
+                    restored_patch = patch.squeeze(0) - model_out
                 else:
-                    # Model predicts clean image directly
-                    # TODO: implementare questa parte
-                    pass
+                    restored_patch = model_out
 
-                # Pass noise_sigma to model if provided
-                if noise_sigma is not None:
-                    restored_patch = model(patch, noise_sigma=noise_sigma).squeeze(0)
-                else:
-                    restored_patch = model(patch).squeeze(0)
-
-                # Accumulate with weights
+                # Accumulate with blending weights
                 output[:, y : y + patch_size, x : x + patch_size] += (
                     restored_patch * window
                 )
                 weights[y : y + patch_size, x : x + patch_size] += window
 
-    # Normalize by weight sum (add epsilon to avoid division by zero)
-    eps = 1e-8
-    output = output / (weights.unsqueeze(0) + eps)
+    # Normalise by accumulated weights
+    output = output / (weights.unsqueeze(0) + 1e-8)
 
     return output
 
@@ -170,9 +171,10 @@ def restore_image(
     image_path: Path,
     output_path: Optional[Path] = None,
     patch_size: int = 256,
-    overlap: int = 32,
+    overlap: int = 64,
     device: str = "cuda",
     residual_learning: bool = False,
+    use_amp: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Restore a full-resolution image from file.
@@ -184,7 +186,7 @@ def restore_image(
         patch_size: Size of patches for sliding window
         overlap: Overlap between patches
         device: Device to run inference on
-        residual_learning: If True, model predicts noise and output is image - noise_hat
+        use_amp: Whether to use automatic mixed precision
 
     Returns:
         Tuple of (degraded_image, restored_image) as numpy arrays (H, W, C)
@@ -208,6 +210,7 @@ def restore_image(
         overlap=overlap,
         device=device,
         residual_learning=residual_learning,
+        use_amp=use_amp,
     )
 
     # Denormalize to image

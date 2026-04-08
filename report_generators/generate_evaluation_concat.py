@@ -15,10 +15,18 @@ def load_evaluation_metrics(metrics_file: Path) -> Optional[Dict[str, Any]]:
     return None
 
 
+def get_experiments_base() -> Path:
+    """Resolve experiments directory relative to repository root."""
+    repo_root = Path(__file__).resolve().parents[1]
+    return repo_root / "experiments" / "pix2pix" / "gaussian"
+
+
 def main():
-    experiments_base = Path(
-        r"c:\Development\Deep_Learning\Progetto1\Image-Enhancement\experiments\pix2pix\gaussian"
-    )
+    experiments_base = get_experiments_base()
+
+    if not experiments_base.exists():
+        print(f"❌ Experiments directory not found: {experiments_base}")
+        return
 
     # Collect all evaluation metrics
     all_evaluations = []

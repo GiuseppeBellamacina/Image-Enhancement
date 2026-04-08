@@ -21,8 +21,14 @@ def find_project_root(marker_file: str = "pyproject.toml") -> Path:
     """
     current = Path.cwd()
 
-    # Search upward for marker file
+    # Search upward from current working directory first.
     for parent in [current] + list(current.parents):
+        if (parent / marker_file).exists():
+            return parent
+
+    # Fallback: resolve relative to this file location.
+    module_dir = Path(__file__).resolve().parent
+    for parent in [module_dir] + list(module_dir.parents):
         if (parent / marker_file).exists():
             return parent
 

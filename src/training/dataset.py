@@ -230,10 +230,16 @@ def get_dataloaders(
 
 
 if __name__ == "__main__":
-    from ..utils.paths import get_degraded_data_dir, get_raw_data_dir
+    from ..utils.paths import get_raw_data_dir, get_specific_degraded_dir
 
     dataset = ImageEnhancementDataset(
-        degraded_dir=str(get_degraded_data_dir() / "DIV2K_train_HR"),
+        degraded_dir=str(
+            get_specific_degraded_dir(
+                degradation_type="gaussian_noise",
+                noise_sigma=100,
+            )
+            / "DIV2K_train_HR"
+        ),
         clean_dir=str(get_raw_data_dir() / "DIV2K_train_HR"),
         patch_size=128,
         patches_per_image=2,

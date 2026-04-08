@@ -45,10 +45,18 @@ def calculate_final_metrics(history: Dict[str, Any]) -> Dict[str, float]:
     return metrics
 
 
+def get_experiments_base() -> Path:
+    """Resolve experiments directory relative to repository root."""
+    repo_root = Path(__file__).resolve().parents[1]
+    return repo_root / "experiments" / "pix2pix" / "gaussian"
+
+
 def main():
-    experiments_base = Path(
-        r"c:\Development\Deep_Learning\Progetto1\Image-Enhancement\experiments\pix2pix\gaussian"
-    )
+    experiments_base = get_experiments_base()
+
+    if not experiments_base.exists():
+        print(f"❌ Experiments directory not found: {experiments_base}")
+        return
 
     # Collect all experiments
     experiments_data = []

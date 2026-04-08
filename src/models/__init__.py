@@ -5,7 +5,8 @@ Neural network models for image enhancement.
 from .unet import UNet
 from .unet_residual import UNetResidual
 from .attention_unet import AttentionUNet
-from .nafnet_v2 import NAFNet
+from .nafnet import NAFNet
+from .nafnet_v2 import NAFNetv2
 from .pix2pix import Pix2PixGenerator, PatchGANDiscriminator
 
 # from .dncnn import DnCNN
@@ -16,6 +17,7 @@ __all__ = [
     "UNetResidual",
     "AttentionUNet",
     "NAFNet",
+    "NAFNetv2",
     "Pix2PixGenerator",
     "PatchGANDiscriminator",
 ]  # , 'DnCNN', 'Autoencoder']

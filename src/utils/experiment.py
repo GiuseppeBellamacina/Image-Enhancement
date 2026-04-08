@@ -291,6 +291,7 @@ def compare_configs(
         ignore_keys = {
             "resume_from_checkpoint",
             "resume_experiment",
+            "resume_learning_rate",  # applied only after load; should not fork experiments
             "num_epochs",
             "save_every",
             "val_every",

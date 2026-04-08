@@ -10,7 +10,7 @@ from .metrics import (
     calculate_all_metrics,
     print_metrics,
 )
-from .inference import (
+from .inferenceNAFNETv2 import (
     normalize_image,
     denormalize_image,
     sliding_window_inference,

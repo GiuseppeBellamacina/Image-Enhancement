@@ -12,7 +12,7 @@ import numpy as np
 import cv2
 import json
 
-from .inference import (
+from .inferenceNAFNETv2 import (
     normalize_image,
     denormalize_image,
     sliding_window_inference,

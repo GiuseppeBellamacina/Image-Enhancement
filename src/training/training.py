@@ -4,6 +4,7 @@ Training and validation loop utilities
 """
 
 import torch
+import math
 from torch.amp.autocast_mode import autocast
 
 from .training_utils import (
@@ -47,10 +48,24 @@ def train_epoch(
     running_l1 = 0.0
     running_ssim = 0.0
     running_perceptual = 0.0
+    valid_batches = 0
+    skipped_non_finite = 0
 
     pbar = create_progress_bar(
         train_loader, epoch, phase="Train", leave=False, position=1
     )
+
+    def _metrics_are_finite(loss: torch.Tensor, metrics: dict) -> bool:
+        if not torch.isfinite(loss):
+            return False
+
+        for value in metrics.values():
+            if isinstance(value, torch.Tensor):
+                value = value.item()
+            if not math.isfinite(float(value)):
+                return False
+
+        return True
 
     for batch_idx, (degraded, clean) in enumerate(pbar):
         output = None
@@ -68,6 +83,18 @@ def train_epoch(
                     output = model(degraded)
                     loss, metrics = criterion(output, clean)
 
+                # If AMP produces non-finite values, retry once in float32 before skipping.
+                if not _metrics_are_finite(loss, metrics):
+                    with autocast(device_type=device, enabled=False):
+                        output = model(degraded.float())
+                        loss, metrics = criterion(output, clean.float())
+
+                if not _metrics_are_finite(loss, metrics):
+                    skipped_non_finite += 1
+                    optimizer.zero_grad(set_to_none=True)
+                    pbar.set_postfix({"loss": "nan", "skip": skipped_non_finite})
+                    continue
+
                 # Backward pass with gradient scaling
                 scaler.scale(loss).backward()
 
@@ -83,6 +110,18 @@ def train_epoch(
                 # Standard training without mixed precision
                 output = model(degraded)
                 loss, metrics = criterion(output, clean)
+
+                # Skip unstable batches to avoid corrupting optimizer/model state.
+                if not _metrics_are_finite(loss, metrics):
+                    with autocast(device_type=device, enabled=False):
+                        output = model(degraded.float())
+                        loss, metrics = criterion(output, clean.float())
+
+                if not _metrics_are_finite(loss, metrics):
+                    skipped_non_finite += 1
+                    optimizer.zero_grad(set_to_none=True)
+                    pbar.set_postfix({"loss": "nan", "skip": skipped_non_finite})
+                    continue
 
                 # Backward pass
                 loss.backward()
@@ -110,6 +149,7 @@ def train_epoch(
             if "perceptual" in metrics and metrics["perceptual"] > 0:
                 postfix["perceptual"] = f"{metrics['perceptual']:.4f}"
             pbar.set_postfix(postfix)
+            valid_batches += 1
 
         except (torch.cuda.OutOfMemoryError, RuntimeError) as e:
             # Check if it's an OOM error
@@ -130,7 +170,16 @@ def train_epoch(
                 raise
 
     # Average metrics
-    n_batches = len(train_loader)
+    n_batches = valid_batches
+    if n_batches == 0:
+        raise RuntimeError(
+            "All training batches in this epoch were non-finite (NaN/Inf). "
+            "Lower learning rate or restart from a clean checkpoint."
+        )
+    if skipped_non_finite > 0:
+        print(
+            f"⚠️  Epoch {epoch}: skipped {skipped_non_finite} non-finite training batches"
+        )
     avg_metrics = {
         "loss": running_loss / n_batches,
         "l1": running_l1 / n_batches,
@@ -171,6 +220,20 @@ def validate(
     running_l1 = 0.0
     running_ssim = 0.0
     running_perceptual = 0.0
+    valid_batches = 0
+    skipped_non_finite = 0
+
+    def _metrics_are_finite(loss: torch.Tensor, metrics: dict) -> bool:
+        if not torch.isfinite(loss):
+            return False
+
+        for value in metrics.values():
+            if isinstance(value, torch.Tensor):
+                value = value.item()
+            if not math.isfinite(float(value)):
+                return False
+
+        return True
 
     pbar = create_progress_bar(val_loader, epoch, phase="Val", leave=False, position=1)
 
@@ -191,6 +254,16 @@ def validate(
                 output = model(degraded)
                 loss, metrics = criterion(output, clean)
 
+            if not _metrics_are_finite(loss, metrics):
+                with autocast(device_type=device, enabled=False):
+                    output = model(degraded.float())
+                    loss, metrics = criterion(output, clean.float())
+
+            if not _metrics_are_finite(loss, metrics):
+                skipped_non_finite += 1
+                pbar.set_postfix({"loss": "nan", "skip": skipped_non_finite})
+                continue
+
             # Update metrics
             running_loss += metrics["total"]
             running_l1 += metrics["l1"]
@@ -206,6 +279,7 @@ def validate(
             if "perceptual" in metrics and metrics["perceptual"] > 0:
                 postfix["perceptual"] = f"{metrics['perceptual']:.4f}"
             pbar.set_postfix(postfix)
+            valid_batches += 1
 
         except (torch.cuda.OutOfMemoryError, RuntimeError) as e:
             # Check if it's an OOM error
@@ -226,7 +300,15 @@ def validate(
                 raise
 
     # Average metrics
-    n_batches = len(val_loader)
+    n_batches = valid_batches
+    if n_batches == 0:
+        raise RuntimeError(
+            "All validation batches in this epoch were non-finite (NaN/Inf)."
+        )
+    if skipped_non_finite > 0:
+        print(
+            f"⚠️  Epoch {epoch}: skipped {skipped_non_finite} non-finite validation batches"
+        )
     avg_metrics = {
         "loss": running_loss / n_batches,
         "l1": running_l1 / n_batches,

@@ -1,0 +1,114 @@
+\documentclass[12pt,a4paper,openany,oneside]{book}
+
+\usepackage{hyperref}
+\usepackage[italian]{babel}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+
+\usepackage{graphicx}
+\usepackage[font=small,labelfont=bf,tableposition=top]{caption}
+
+\usepackage[a4paper, top=2.2cm, bottom=2.5cm, left=2.2cm, right=2.2cm, headheight=14pt]{geometry}
+            
+\usepackage{listings}
+\usepackage{inconsolata}
+\usepackage{xcolor}
+\usepackage[framemethod=tikz]{mdframed}
+
+% Colori per il codice Python
+\definecolor{commentsgreen}{rgb}{0, 0.6, 0}
+\definecolor{codegray}{rgb}{0.5, 0.5, 0.5}
+\definecolor{keywordpurple}{rgb}{0.77, 0.525, 0.75}
+\definecolor{backcolour}{rgb}{0.12, 0.12, 0.12}
+\definecolor{functionyellow}{rgb}{0.86, 0.86, 0.667}
+\definecolor{basicblue}{rgb}{0.61, 0.86, 1}
+\definecolor{classgreen}{rgb}{0.294, 0.745, 0.6}
+\definecolor{numberyellow}{rgb}{0.686, 0.705, 0.435}
+\definecolor{stringbrown}{rgb}{0.8, 0.51, 0.298}
+
+\lstset{
+    language=Python,
+    basicstyle=\footnotesize\ttfamily\color{basicblue},
+    numbers=left,
+    numberstyle=\tiny\ttfamily\color{codegray},
+    numbersep=8pt,
+    tabsize=4,
+    escapeinside={(*@}{@*)},
+    extendedchars=true,
+    breaklines=true,
+    backgroundcolor=\color{backcolour},
+    commentstyle=\ttfamily\color{commentsgreen},
+    keywordstyle=\ttfamily\color{keywordpurple},
+    stringstyle=\ttfamily\color{stringbrown},
+    showspaces=false,
+    showtabs=false,
+    xleftmargin=17pt,
+    framexleftmargin=17pt,
+    framexrightmargin=5pt,
+    framexbottommargin=4pt,
+    showstringspaces=false,
+    captionpos=b,
+    morekeywords=[2]{forward, train_epoch, validate, run_training, sliding_window_inference, restore_image, evaluate_image, evaluate_dataset, add_gaussian_noise, apply_quantization_dithering, extract_random_patch, get_dataloaders, setup_experiment, save_checkpoint, load_checkpoint, calculate_psnr, calculate_ssim, calculate_all_metrics, denormalize_image, normalize_image, create_blend_window},
+    keywordstyle=[2]\ttfamily\color{functionyellow},
+    morekeywords=[3]{UNet, UNetResidual, AttentionUNet, DnCNN, DenoisingAutoencoder, RIDNet, Pix2PixGenerator, PatchGANDiscriminator, DoubleConv, Down, Up, OutConv, AttentionGate, ChannelAttention, EAB, CombinedLoss, CombinedPerceptualLoss, VGGPerceptualLoss, ImageEnhancementDataset, ImageRestorationEvaluator, nn, Module, Conv2d, BatchNorm2d, ReLU, LeakyReLU, MaxPool2d, Upsample, ConvTranspose2d, Sequential, Sigmoid, Tanh, AdamW, Adam, Dataset, DataLoader, GradScaler, Tensor, np},
+    keywordstyle=[3]\ttfamily\color{classgreen},
+    literate={.}{{\textcolor{white}{.}}}1 
+             {=}{{\textcolor{white}{=}}}1
+             {,}{{\textcolor{white}{,}}}1
+             {:}{{\textcolor{white}{:}}}1
+             {|}{{\textcolor{white}{|}}}1
+             {+}{{\textcolor{white}{+}}}1
+             {-}{{\textcolor{white}{-}}}1
+             {>}{{\textcolor{white}{>}}}1
+             {<}{{\textcolor{white}{<}}}1
+             {*}{{\textcolor{white}{*}}}1
+}
+
+\addto\captionsitalian{
+    \renewcommand{\lstlistingname}{Codice}
+}
+
+\setcounter{tocdepth}{2}
+\setcounter{secnumdepth}{2}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{float}
+\usepackage{framed}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{subcaption}
+\usepackage{multirow}
+
+\emergencystretch=4em
+
+\begin{document}
+
+\newgeometry{top=2.5cm, bottom=3cm, left=2.5cm, right=2.5cm}
+\input{parts/frontespizio}
+\restoregeometry
+
+\tableofcontents
+
+\input{parts/introduzione}
+
+\input{parts/degradazioni}
+
+\input{parts/infrastruttura}
+
+\input{parts/modelli}
+
+\input{parts/training}
+
+\input{parts/valutazione}
+
+% TODO: aggiungere capitolo risultati quando disponibili
+% \input{parts/risultati}
+
+\begin{thebibliography}{9}
+\bibitem{div2k}
+E.~Agustsson and R.~Timofte, ``NTIRE 2017 Challenge on Single Image Super-Resolution: Dataset and Study,'' in \textit{IEEE Conference on Computer Vision and Pattern Recognition Workshops (CVPRW)}, 2017.
+\end{thebibliography}
+
+\end{document}

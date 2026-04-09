@@ -91,3 +91,14 @@ htmlcov/
 
 # Documentation
 docs/_build/
+
+# Latex
+*.aux
+*.bbl
+*.blg
+*.out
+*.fls
+*.fdb_latexmk
+*.gz
+*.toc
+*.log

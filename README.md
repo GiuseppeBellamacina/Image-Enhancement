@@ -2,426 +2,191 @@
 
 ## Corruption → Restoration → Evaluation
 
-Progetto di studio e confronto di diversi metodi di **Image Enhancement** attraverso reti neurali convoluzionali e tecniche di degradazione controllata.
+A comparative study of **eight deep learning architectures** for image denoising, developed as a Deep Learning course project. The system applies controlled degradations to high-resolution images and restores them using CNN-based models, evaluating results with quantitative metrics.
 
 **Pipeline:**  
-👉 Corrompere immagini con degradazioni parametrizzabili  
-👉 Ricostruirle usando modelli CNN avanzati (UNet, Residual UNet, Attention UNet)  
-👉 Confrontare i risultati con metriche quantitative (PSNR/SSIM) e qualitative
+👉 Corrupt images with parametric degradations  
+👉 Restore them using advanced CNN models  
+👉 Compare results with quantitative (PSNR/SSIM) and qualitative metrics
+
+📄 **[Full Report (PDF)](docs/latex/relazione.pdf)** — IEEE-format paper with detailed architecture descriptions, training procedures, ablation studies, and results analysis.
 
 ---
 
-## 🔍 Obiettivi del progetto
+## 🏆 Results Summary
 
-- [x] Implementare **tipi di corruzione** parametrizzabili (Gaussian noise, Quantization dithering)
-- [x] Sistema di **path management automatico** per dataset degradati
-- [x] Addestrare modelli di **restauro CNN** (UNet, UNetResidual, AttentionUNet)
-- [x] Implementare **loss functions** avanzate (L1+SSIM, Perceptual Loss con VGG16)
-- [x] Valutare con metriche **PSNR, SSIM** + sliding window inference su immagini full-resolution
-- [x] Sistema di **training completo** (mixed precision, warmup, cosine scheduler, early stopping)
-- [ ] Estendere a più degradazioni (blur, JPEG compression, low-light)
-- [ ] Ablation study completo su architetture e loss functions
+| Model          | PSNR (dB) | SSIM      | Parameters |
+| -------------- | --------- | --------- | ---------- |
+| **NAFNet-V2**  | **26.36** | **0.747** | ~67M       |
+| Pix2Pix        | 26.08     | 0.733     | ~54M       |
+| RIDNet         | 25.83     | 0.720     | ~1.5M      |
+| DnCNN          | 25.62     | 0.710     | ~0.7M      |
+| Attention UNet | 25.55     | 0.709     | ~13.7M     |
+| UNet Residual  | 25.45     | 0.697     | ~7.8M      |
+| UNet           | 25.17     | 0.686     | ~7.8M      |
+| Denoising AE   | 24.46     | 0.651     | ~2.3M      |
+
+Evaluated on DIV2K validation images with Gaussian noise σ=100.
 
 ---
 
-## 📁 Struttura della Repository
+## 🔍 Project Goals
+
+- [x] Implement **parametric degradation** types (Gaussian noise, quantization dithering, salt & pepper)
+- [x] **Automatic path management** for degraded datasets
+- [x] Train **8 CNN restoration models** (UNet, UNet Residual, Attention UNet, DnCNN, RIDNet, DAE, Pix2Pix, NAFNet-V2)
+- [x] Implement **advanced loss functions** (L1+SSIM, Perceptual Loss with VGG16, Charbonnier, adversarial)
+- [x] Evaluate with **PSNR, SSIM** metrics + sliding window inference on full-resolution images
+- [x] Complete **training system** (mixed precision, warmup, cosine scheduler, early stopping)
+- [x] **Ablation studies** on architectures, loss functions, and training strategies
+
+---
+
+## 📁 Repository Structure
 
 ```text
-├── 📁 data
-├── 📁 docs
-├── 📁 notebooks
-│   ├── 📁 test_degradations
-│   │   ├── 📄 salt_and_pepper.ipynb
-│   │   ├── 📄 test_gaussian_noise.ipynb
-│   │   └── 📄 test_quantization_dithering.ipynb
-│   └── 📁 test_trainings
-│       ├── 📁 attention_unet
-│       │   └── 📁 gaussian
-│       │       ├── 📄 attention_unet_gaussian_bilinear.ipynb
-│       │       ├── 📄 attention_unet_gaussian_bilinear_bottleneck.ipynb
-│       │       ├── 📄 attention_unet_gaussian_upsample.ipynb
-│       │       └── 📄 attention_unet_gaussian_upsample_bottleneck.ipynb
-│       ├── 📁 pix2pix
-│       │   └── 📁 gaussian
-│       │       └── 📄 pix2pix_gaussian_v1.ipynb
-│       ├── 📁 swin2sr
-│       ├── 📁 unet
-│       │   ├── 📁 dithering
-│       │   │   └── 📁 random
-│       │   │       ├── 📄 unet_random_dithering_bilinear.ipynb
-│       │   │       └── 📄 unet_random_dithering_upsample.ipynb
-│       │   └── 📁 gaussian
-│       │       └── 📄 unet_gaussian_bilinear.ipynb
-│       └── 📁 unet_residual
-│           └── 📁 gaussian
-│               ├── 📄 unet_residual_gaussian_bilinear.ipynb
-│               └── 📄 unet_residual_gaussian_upsample.ipynb
-├── 📁 report_generators
-│   ├── 🐍 generate_comparison_report.py
-│   ├── 🐍 generate_evaluation_concat.py
-│   ├── 🐍 generate_experiment_summaries.py
-│   └── 🐍 generate_hyperparams_metrics.py
-├── 📁 src
-│   ├── 📁 degradations
-│   │   ├── 🐍 __init__.py
-│   │   ├── 🐍 gaussian_noise.py
-│   │   ├── 🐍 generate_degraded_dataset.py
-│   │   ├── 🐍 quantization_dithering.py
-│   │   └── 🐍 salt_and_pepper.py
-│   ├── 📁 evaluation
-│   │   ├── 🐍 __init__.py
-│   │   ├── 🐍 evaluator.py
-│   │   ├── 🐍 inference.py
-│   │   └── 🐍 metrics.py
-│   ├── 📁 losses
-│   │   ├── 🐍 __init__.py
-│   │   ├── 🐍 combined_loss.py
-│   │   └── 🐍 perceptual_loss.py
-│   ├── 📁 models
-│   │   ├── 🐍 __init__.py
-│   │   ├── 🐍 attention_unet.py
-│   │   ├── 🐍 pix2pix.py
-│   │   ├── 🐍 unet.py
-│   │   └── 🐍 unet_residual.py
-│   ├── 📁 training
-│   │   ├── 🐍 __init__.py
-│   │   ├── 🐍 dataset.py
-│   │   ├── 🐍 trainer.py
-│   │   ├── 🐍 training.py
-│   │   ├── 🐍 training_pix2pix.py
-│   │   └── 🐍 training_utils.py
-│   └── 📁 utils
-│       ├── 🐍 __init__.py
-│       ├── 🐍 checkpoints.py
-│       ├── 🐍 download_dataset.py
-│       ├── 🐍 experiment.py
-│       ├── 🐍 paths.py
-│       ├── 🐍 telegram_notifier.py
-│       └── 🐍 visualization.py
-├── ⚙️ .env.example
-├── ⚙️ .gitignore
-├── 📄 LICENSE
-├── 📝 README.md
-├── 📄 format.ps1
-├── ⚙️ pyproject.toml
+├── 📁 data/                    # Datasets (raw + degraded)
+├── 📁 docs/latex/              # LaTeX report source
+├── 📁 experiments/             # Training outputs and checkpoints
+├── 📁 notebooks/
+│   ├── 📁 test_degradations/   # Degradation testing notebooks
+│   └── 📁 test_trainings/      # Training notebooks per model
+├── 📁 report_generators/       # Scripts for generating reports
+├── 📁 src/
+│   ├── 📁 degradations/        # Image corruption implementations
+│   ├── 📁 evaluation/          # Metrics and inference
+│   ├── 📁 losses/              # Loss functions
+│   ├── 📁 models/              # Model architectures
+│   ├── 📁 training/            # Training pipeline
+│   └── 📁 utils/               # Utilities (paths, checkpoints, etc.)
 ├── 📄 requirements.txt
-└── 📄 setup.ps1
+├── 📄 setup.ps1                # Windows setup script
+└── 📄 pyproject.toml
 ```
 
 ---
 
-## 🧪 Degradazioni Implementate
+## 🧪 Implemented Degradations
 
-### ✅ Gaussian Noise
+### Gaussian Noise
 
-Rumore gaussiano additivo parametrizzabile per sigma.
+Additive Gaussian noise with configurable sigma.
 
-**Implementazione:**
+- Parameterized by σ (standard deviation)
+- Training tested at σ = 100 (heavy noise)
+- Auto-path: `data/degraded/gaussian/sigma_{sigma}/`
 
-- Noise parametrizzato da σ (standard deviation)
-- Training testato: σ = 100 (noise pesante)
-- Path automatico: `data/degraded/gaussian/sigma_{sigma}/`
+### Quantization + Dithering
 
-### ✅ Quantization + Dithering
+Color quantization with variable bit depth + dithering algorithms.
 
-Quantizzazione del colore con diversi livelli di bit depth + dithering.
-
-**Implementazione:**
-
-- Quantizzazione: 2, 4, 6, 8 bit per canale
+- Quantization: 2, 4, 6, 8 bits per channel
 - Dithering: random, Floyd-Steinberg, Bayer pattern
-- Path automatico: `data/degraded/dithering/{type}/{bits}bit/`
+- Auto-path: `data/degraded/dithering/{type}/{bits}bit/`
 
-**Configurazione testata:**
+### Salt & Pepper Noise
 
-- 2-bit random dithering
-- Training: immagini ditherate → originali clean
-
-### ✅ **Salt & Pepper noise**
-
-**Implementazione:**
-
-- densità variabile
-- rapporto salt/pepper variabile
-
-### 🔜 Future Degradations (Planned)
-
-- **Gaussian blur** / **Motion blur** (kernel size variabile)
-- **JPEG compression artifacts** (quality: 30, 50, 70, 90)
-- **Low-light simulation** (gamma correction + scaling)
-- **Combinazioni** (es. blur + noise, JPEG + dithering)
+- Variable density
+- Configurable salt/pepper ratio
 
 ---
 
-## 🤖 Modelli Implementati
+## 🤖 Implemented Models
 
-### ✅ UNet (Standard)
-
-Architettura encoder-decoder con skip connections.
-
-**Caratteristiche:**
-
-- Encoder: 4 livelli di downsampling (conv + max pool)
-- Decoder: 4 livelli di upsampling (bilinear/transposed conv)
-- Skip connections: concatenazione features encoder → decoder
-- Output: Direct reconstruction (predice immagine pulita)
-
-**Parametri:**
-
-- features=64, bilinear=True: ~7.8M params
-- features=64, bilinear=False: ~11M params
-
-### ✅ UNet Residual
-
-UNet con residual learning: predice noise invece di immagine.
-
-**Caratteristiche:**
-
-- Stessa architettura di UNet standard
-- Output: `clean = degraded - predicted_noise`
-- Migliore per denoising (apprende direttamente il rumore)
-
-**Vantaggi:**
-
-- Convergenza più veloce su Gaussian noise
-- Gradients più stabili
-
-### ✅ Attention UNet
-
-UNet con attention gates per focus selettivo sulle regioni importanti.
-
-**Caratteristiche:**
-
-- Attention gates su ogni skip connection
-- Focus automatico su regioni degradate
-- Parametri: ~13.7M (bilinear=True), ~17-18M (bilinear=False)
-
-**Configurazione ottimale:**
-
-- bilinear=True per stabilità
-- Learning rate: 3e-5 - 5e-5
-- Weight decay: 1e-6
-
-### 🔜 Future Models (Planned)
-
-**CNN-based:**
-
-- **DnCNN** (Denoising CNN con batch norm)
-- **Denoising Autoencoder** (encoder-decoder semplice)
-
-**Advanced:**
-
-- **Transformer-based** (SwinIR, opzionale)
-- **GAN-based** (Pix2Pix per texture enhancement)
+| Model              | Type            | Key Features                                   |
+| ------------------ | --------------- | ---------------------------------------------- |
+| **UNet**           | Encoder-Decoder | Skip connections, direct reconstruction        |
+| **UNet Residual**  | Encoder-Decoder | Residual learning (predicts noise)             |
+| **Attention UNet** | Encoder-Decoder | Attention gates on skip connections            |
+| **DnCNN**          | Feed-Forward    | 17-layer CNN with batch normalization          |
+| **RIDNet**         | Residual        | Feature attention + EAM modules                |
+| **Denoising AE**   | Autoencoder     | Compact encoder-decoder                        |
+| **Pix2Pix**        | GAN             | Conditional adversarial training               |
+| **NAFNet-V2**      | Activation-Free | Simple Channel Attention, multi-stage training |
 
 ---
 
-## 🎯 Loss Functions Implementate
+## 🎯 Loss Functions
 
-### ✅ CombinedLoss (L1 + SSIM)
-
-Loss combination per bilanciare pixel-wise e structural similarity.
-
-**Formula:**
-
-```python
-loss = α * L1(pred, target) + β * (1 - SSIM(pred, target))
-```
-
-**Configurazione tipica:**
-
-- α = 0.84 (L1 weight)
-- β = 0.16 (SSIM weight)
-
-**Vantaggi:**
-
-- L1: Convergenza pixel-wise precisa
-- SSIM: Preserva struttura percettiva
-
-### ✅ CombinedPerceptualLoss (L1 + SSIM + VGG Perceptual)
-
-Loss avanzata con feature matching VGG16 per qualità percettiva.
-
-**Formula:**
-
-```python
-loss = α * L1 + β * (1 - SSIM) + γ * Perceptual(VGG)
-```
-
-**Implementazione:**
-
-- VGG16 pre-trained (ImageNet weights)
-- Feature extraction: relu2_2, relu3_3 layers
-- Smart γ=0 handling: usa CombinedLoss direttamente (no VGG overhead)
-
-**Configurazione tipica:**
-
-- α = 0.6 (L1)
-- β = 0.25 (SSIM)
-- γ = 0.15 (Perceptual) — 0 per disabilitare
-
-**Vantaggi:**
-
-- Migliore qualità visiva su texture complesse
-- Riduce artifacts perceptually unpleasant
+| Loss                       | Formula                   | Use Case                       |
+| -------------------------- | ------------------------- | ------------------------------ |
+| **CombinedLoss**           | α·L1 + β·(1-SSIM)         | General denoising              |
+| **CombinedPerceptualLoss** | α·L1 + β·(1-SSIM) + γ·VGG | Texture preservation           |
+| **Charbonnier**            | √(x² + ε²)                | Smooth L1 alternative (NAFNet) |
+| **RIDNet Loss**            | L1 + edge-aware           | Feature attention training     |
+| **Adversarial**            | GAN loss + λ·L1           | Pix2Pix training               |
 
 ---
 
-## 📊 Metriche di Valutazione
+## 📊 Evaluation
 
-### Implementate
-
-- **PSNR** (Peak Signal-to-Noise Ratio) — qualità pixel-wise (dB)
-- **SSIM** (Structural Similarity Index) — similarità strutturale (0-1)
-- **Sliding window inference** — valutazione su full-resolution images
-
-### Valutazione Full-Resolution
-
-- Patch size: 128×128 con overlap 32px
-- Blending: weighted averaging nelle overlap regions
-- Output: restored images salvate + metrics JSON
-
-### Future Metrics (Planned)
-
-- **LPIPS** (Learned Perceptual Image Patch Similarity)
-- **FID** (Fréchet Inception Distance, per GAN)
-- **Tempo di inferenza** e utilizzo memoria
+- **PSNR** (Peak Signal-to-Noise Ratio) — pixel-wise quality (dB)
+- **SSIM** (Structural Similarity Index) — structural similarity (0-1)
+- **Sliding window inference** — full-resolution evaluation with Hann window blending
+- Patch size: 128×128 with 32px overlap
 
 ---
 
-## 🚀 Features del Training System
+## 🚀 Training System Features
 
-### ✅ Implementato
-
-**Path Management Automatico:**
-
-- `generate_degraded_dataset_auto()`: genera paths automatici basati su parametri
-- Gaussian: `data/degraded/gaussian/sigma_{sigma}/`
-- Dithering: `data/degraded/dithering/{type}/{bits}bit/`
-- Existence checking: skip rigenerazione se dataset esiste
-
-**Training Pipeline Avanzato:**
-
-- **Mixed Precision (AMP)**: training più veloce con FP16/FP32
+- **Mixed Precision (AMP)**: faster training with FP16/FP32
 - **Warmup scheduling**: linear warmup + cosine annealing
-- **Early stopping**: patience-based con best model tracking
-- **Gradient clipping**: max_norm=1.0 per stabilità
+- **Early stopping**: patience-based with best model tracking
+- **Gradient clipping**: max_norm=1.0 for stability
 - **Checkpointing**: best model + periodic saves
-
-**Experiment Management:**
-
-- Auto-naming: `{timestamp}_{custom_name}/`
-- Config saving: JSON per reproducibility
-- History tracking: loss curves + learning rate
-- TensorBoard logging: metriche real-time
-
-**Telegram Notifications:**
-
-- Notifiche automatiche ogni N epochs
-- Metrics summary (loss, PSNR, SSIM)
-- Training progress tracking
-
-**Data Augmentation:**
-
-- Random crops (128×128 patches)
-- Random horizontal/vertical flips
-- Normalization [-1, 1]
-
-### 🔧 Hyperparameters Tipici
-
-**UNet / UNet Residual:**
-
-```python
-batch_size: 16
-learning_rate: 1e-4
-weight_decay: 1e-5
-warmup_epochs: 5
-scheduler: cosine
-patience: 5
-```
-
-**Attention UNet:**
-
-```python
-batch_size: 16
-learning_rate: 3e-5 - 5e-5  # Più basso per stabilità
-weight_decay: 1e-6          # Ridotto per 13M+ params
-warmup_epochs: 8            # Warmup più lungo
-patience: 5-6
-```
+- **Experiment management**: auto-naming, config saving, TensorBoard logging
+- **Telegram notifications**: automatic progress updates
+- **Data augmentation**: random crops, flips, normalization
 
 ---
 
-## 🚀 Setup e Installazione
+## 🚀 Setup
 
 ### Requirements
 
 - Python 3.8+
-- CUDA 11.8+ (per training GPU)
+- CUDA 11.8+ (for GPU training)
 - 8GB+ RAM
-- 4GB+ VRAM (consigliato per batch_size=16)
+- 4GB+ VRAM (recommended for batch_size=16)
 
-### Installazione
+### Installation
 
 ```bash
 # Clone repository
 git clone https://github.com/GiuseppeBellamacina/Image-Enhancement.git
 cd Image-Enhancement
 
-# Crea virtual environment (opzionale ma consigliato)
+# Create virtual environment
 python -m venv .venv
 .venv\Scripts\Activate.ps1  # Windows PowerShell
 # source .venv/bin/activate  # Linux/Mac
 
-# Installa dipendenze
+# Install dependencies
 pip install -r requirements.txt
 
-# Oppure usa setup script (Windows + uv)
+# Or use setup script (Windows + uv)
 .\setup.ps1
 ```
 
-### Framework e Librerie Principali
-
-**Core:**
+### Key Dependencies
 
 - `torch>=2.0.0` — PyTorch framework
-- `torchvision>=0.15.0` — Pre-trained models e transforms
-- `pytorch-msssim` — SSIM loss differenziabile
-
-**Image Processing:**
-
-- `opencv-python` — I/O immagini e processing
-- `Pillow` — Image loading
-- `scikit-image` — Metriche (PSNR, SSIM)
-
-**Utilities:**
-
-- `tqdm` — Progress bars
+- `torchvision>=0.15.0` — Pre-trained models and transforms
+- `pytorch-msssim` — Differentiable SSIM loss
+- `opencv-python` — Image I/O and processing
+- `scikit-image` — Metrics (PSNR, SSIM)
 - `tensorboard` — Experiment logging
-- `matplotlib`, `seaborn` — Visualizzazione
-- `requests` — Dataset download
-
-**Development:**
-
-- `ruff` — Linting e formatting
-- `jupyter` — Notebook experiments
 
 ---
 
 ## 📊 Dataset
 
-### ✅ DIV2K (In uso)
+### DIV2K
 
-[**DIV2K**](https://data.vision.ee.ethz.ch/cvl/DIV2K/) — High-quality image restoration dataset
+[**DIV2K**](https://data.vision.ee.ethz.ch/cvl/DIV2K/) — High-quality 2K resolution dataset for image restoration.
 
-**Caratteristiche:**
-
-- 800 immagini training (2K resolution)
-- 100 immagini validation (2K resolution)
-- High quality, diverse content
-- Download automatico tramite `download_div2k_dataset()`
-
-**Storage:**
+- 800 training images + 100 validation images
+- Automatically downloaded via `download_div2k_dataset()`
 
 ```text
 data/raw/
@@ -431,157 +196,52 @@ data/raw/
 
 ---
 
-## 👥 Team
-
-**Membri del gruppo:**
-
-- Giuseppe Bellamacina — Unet, UNet Residual, Attention UNet, Loss Functions, Training System, Evaluation
-- Daniele Barbagallo — Pix2Pix GAN, Transformer-based models
-- Salvatore Iurato — DnCNN
-- Mattia Campanella — Denoising Autoencoder
-
----
-
-## 📅 Timeline (bozza)
-
-| Settimana | Milestone                               |
-| --------- | --------------------------------------- |
-| **1**     | Dataset, degradazioni, repository setup |
-| **2**     | CNN + UNet + baseline classici          |
-| **3**     | GAN / Transformer + loss percettive     |
-| **4**     | Training completo + metriche            |
-| **5**     | Ablation study + analisi                |
-| **6**     | Relazione finale + presentazione        |
-
----
-
-## 📘 Stato Attuale del Progetto
-
-### ✅ Completato
-
-- [x] Repository setup + structure
-- [x] DIV2K dataset integration + auto-download
-- [x] Path management system automatico
-- [x] Gaussian noise degradation (parametrizzabile)
-- [x] Quantization dithering degradation (bits + type)
-- [x] Modelli: UNet, UNet Residual, Attention UNet
-- [x] Loss functions: L1+SSIM, Perceptual Loss (VGG16)
-- [x] Training pipeline completo (AMP, warmup, scheduler, early stopping)
-- [x] Evaluation system (sliding window, PSNR/SSIM)
-- [x] Experiment management (checkpointing, logging, TensorBoard)
-- [x] Telegram notifications
-- [x] Jupyter notebooks per testing
-
-### 🔄 In Corso
-
-- [ ] Training Attention UNet con perceptual loss
-- [ ] Ablation study: loss functions comparison
-- [ ] Ablation study: architecture comparison
-
-### 🔜 Prossimi Steps
-
-- [ ] Implementare degradazioni aggiuntive (blur, JPEG, low-light)
-- [ ] Testare modelli aggiuntivi (DnCNN, opzionalmente GAN/Transformer)
-- [ ] Ablation study completo
-- [ ] Relazione finale + presentazione
-
----
-
 ## 📖 Usage
 
 ### 1. Download Dataset
 
-Il dataset DIV2K viene scaricato automaticamente al primo training, oppure manualmente:
-
 ```python
 from src.utils import download_div2k_dataset
-
 download_div2k_dataset()
-# Download in data/raw/DIV2K_train_HR e DIV2K_valid_HR
 ```
 
-### 2. Genera Dataset Degradato
-
-Sistema di path automatico basato su parametri:
+### 2. Generate Degraded Dataset
 
 ```python
 from src.degradations import generate_degraded_dataset_auto
 
-# Gaussian Noise
 train_deg, train_clean = generate_degraded_dataset_auto(
     dataset_split="DIV2K_train_HR",
     degradation_type="gaussian_noise",
-    noise_sigma=100.0,  # Auto-path: gaussian/sigma_100/
-    seed=42
-)
-
-# Quantization Dithering
-train_deg, train_clean = generate_degraded_dataset_auto(
-    dataset_split="DIV2K_train_HR",
-    degradation_type="quantization_dithering",
-    bits_per_channel=4,      # 4-bit quantization
-    dithering_type="random", # Auto-path: dithering/random/4bit/
+    noise_sigma=100.0,
     seed=42
 )
 ```
 
-**Vantaggi:**
-
-- Path generation automatica basata su parametri
-- Existence checking: skip se dataset esiste già
-- Consistent naming convention
-
 ### 3. Training
 
-Usa i notebook in `notebooks/test_trainings/` per esempi completi.
-
-**Quick Start - UNet su Gaussian Noise:**
+See notebooks in `notebooks/test_trainings/` for complete examples.
 
 ```python
 from src.models import UNet
 from src.losses import CombinedLoss
 from src.training import get_dataloaders, run_training
 
-# Setup model
 model = UNet(in_channels=3, out_channels=3, features=64, bilinear=True)
-
-# Loss function
 criterion = CombinedLoss(alpha=0.84, beta=0.16)
 
-# Dataloaders
 train_loader, val_loader = get_dataloaders(
     train_degraded_dir="data/degraded/gaussian/sigma_100/DIV2K_train_HR",
     train_clean_dir="data/raw/DIV2K_train_HR",
     val_degraded_dir="data/degraded/gaussian/sigma_100/DIV2K_valid_HR",
     val_clean_dir="data/raw/DIV2K_valid_HR",
-    batch_size=16,
-    patch_size=128,
-    patches_per_image=20
+    batch_size=16, patch_size=128, patches_per_image=20
 )
 
-# Training
 history, best_info = run_training(
-    model=model,
-    train_loader=train_loader,
-    val_loader=val_loader,
-    criterion=criterion,
-    optimizer=optimizer,
-    device="cuda",
-    num_epochs=36,
-    use_amp=True
-)
-```
-
-**Con Perceptual Loss:**
-
-```python
-from src.losses import CombinedPerceptualLoss
-
-criterion = CombinedPerceptualLoss(
-    alpha=0.6,   # L1 weight
-    beta=0.25,   # SSIM weight
-    gamma=0.15,  # Perceptual weight (0 per disabilitare)
-    vgg_layers=["relu2_2", "relu3_3"]
+    model=model, train_loader=train_loader, val_loader=val_loader,
+    criterion=criterion, optimizer=optimizer, device="cuda",
+    num_epochs=36, use_amp=True
 )
 ```
 
@@ -590,25 +250,14 @@ criterion = CombinedPerceptualLoss(
 ```python
 from src.evaluation import ImageRestorationEvaluator
 
-# Setup evaluator
-evaluator = ImageRestorationEvaluator(
-    model=model,
-    device="cuda",
-    patch_size=128,
-    overlap=32  # Overlap per smooth blending
-)
-
-# Evaluate su validation set
+evaluator = ImageRestorationEvaluator(model=model, device="cuda", patch_size=128, overlap=32)
 results = evaluator.evaluate_dataset(
     degraded_dir="data/degraded/gaussian/sigma_100/DIV2K_valid_HR",
     clean_dir="data/raw/DIV2K_valid_HR",
     output_dir="experiments/unet/gaussian/restored_images",
     save_outputs=True
 )
-
-# Print summary
 evaluator.print_summary(results)
-# Output: Average PSNR, SSIM + per-image metrics
 ```
 
 ### 5. TensorBoard Monitoring
@@ -617,35 +266,36 @@ evaluator.print_summary(results)
 tensorboard --logdir experiments/
 ```
 
-Visualizza:
+---
 
-- Training/validation loss curves
-- Learning rate schedule
-- PSNR/SSIM metrics
-- Sample images
+## 👥 Team
+
+| Member                   | Contributions                                                                                    |
+| ------------------------ | ------------------------------------------------------------------------------------------------ |
+| **Giuseppe Bellamacina** | UNet, UNet Residual, Attention UNet, Loss Functions, Training System, Evaluation, Infrastructure |
+| **Daniele Barbagallo**   | Pix2Pix GAN, NAFNet-V2                                                                           |
+| **Salvatore Iurato**     | DnCNN, RIDNet                                                                                    |
+| **Mattia Campanella**    | Denoising Autoencoder                                                                            |
 
 ---
 
-## 📚 Riferimenti
+## 📚 References
 
-**Architetture:**
+**Architectures:**
 
 - **UNet**: Ronneberger et al., "U-Net: Convolutional Networks for Biomedical Image Segmentation" (2015)
 - **Attention UNet**: Oktay et al., "Attention U-Net: Learning Where to Look for the Pancreas" (2018)
-- **Residual Learning**: He et al., "Deep Residual Learning for Image Recognition" (2016)
+- **DnCNN**: Zhang et al., "Beyond a Gaussian Denoiser: Residual Learning of Deep CNN for Image Denoising" (2017)
+- **RIDNet**: Anwar & Barnes, "Real Image Denoising with Feature Attention" (2019)
+- **NAFNet**: Chen et al., "Simple Baselines for Image Restoration" (2022)
+- **Pix2Pix**: Isola et al., "Image-to-Image Translation with Conditional Adversarial Networks" (2017)
 
 **Loss Functions:**
 
 - **SSIM**: Wang et al., "Image Quality Assessment: From Error Visibility to Structural Similarity" (2004)
 - **Perceptual Loss**: Johnson et al., "Perceptual Losses for Real-Time Style Transfer and Super-Resolution" (2016)
-- **VGG Features**: Zhang et al., "The Unreasonable Effectiveness of Deep Features as a Perceptual Metric" (2018)
 
-**Image Restoration:**
-
-- **DnCNN**: Zhang et al., "Beyond a Gaussian Denoiser" (2017)
-- **Noise2Noise**: Lehtinen et al., "Noise2Noise: Learning Image Restoration without Clean Data" (2018)
-
-**Datasets:**
+**Dataset:**
 
 - **DIV2K**: Agustsson & Timofte, "NTIRE 2017 Challenge on Single Image Super-Resolution" (2017)
 

@@ -64,11 +64,12 @@ Att.\ UNet (btlnk) & L1+SSIM+VGG (0.65/0.3/0.05) & 4e-5 & AdamW & 36 & 16 & 128 
 DnCNN (17L, 64F) & L1+SSIM (0.85/0.15) & 1e-3 & Adam & 100 & 32 & 96 & --- & 10 & Step \\
 Denoising AE & L1+SSIM (0.84/0.16) & 1e-4 & Adam & 200 & 40 & 128 & 2 & 15 & Cosine \\
 RIDNet (8 EAB) & L1+SSIM (0.8/0.2) & 1e-4 & Adam & 150 & 8 & 256 & 5 & 10 & Cosine \\
+NAFNet-V2 & Charbonnier (+SSIM) & 1e-3$^\dagger$ & Adam & 200$^\dagger$ & 32 & 128 & 5 & 30 & Cosine \\
 \midrule
-Pix2Pix (TODO) & GAN+L1+SSIM & G:2e-4 & Adam & 150 & 8 & 384 & --- & 25 & --- \\
+Pix2Pix & GAN+L1+SSIM & G:2e-4 & Adam & 150 & 8 & 384 & --- & 25 & --- \\
 \bottomrule
 \end{tabular}
-\caption{Training hyperparameters for each model's best configuration. Gaussian noise $\sigma = 100$ on DIV2K. Loss weights shown as $\alpha/\beta$ (L1/SSIM) or $\alpha/\beta/\gamma$ (L1/SSIM/Perceptual).}
+\caption{Training hyperparameters for each model's best configuration. Gaussian noise $\sigma = 100$ on DIV2K. Loss weights shown as $\alpha/\beta$ (L1/SSIM) or $\alpha/\beta/\gamma$ (L1/SSIM/Perceptual). $^\dagger$NAFNet uses a 3-stage pipeline; values shown are for the base stage.}
 \label{tab:hyperparameters}
 \end{table*}
 
@@ -84,4 +85,6 @@ Pix2Pix (TODO) & GAN+L1+SSIM & G:2e-4 & Adam & 150 & 8 & 384 & --- & 25 & --- \\
     \item \textbf{RIDNet specifics:} 8 EAB blocks with \texttt{residual\_scale} = 0.1, 96 feature channels (vs.\ 64 default), and stricter gradient clipping (norm = 0.5).
     
     \item \textbf{Dithering experiments:} Two additional experiments were conducted with 2-bit random dithering using the base UNet (both bilinear and transposed convolution variants).
+    
+    \item \textbf{NAFNet-V2 multi-stage pipeline:} Base training (LR=$10^{-3}$, 32 epochs, 4 patches/img) $\to$ Fork (inherit weights, reduce to 1 patch/img, 80 epochs) $\to$ Fine-tune (LR=$2\times10^{-5}$, add SSIM $\beta = 0.05$, 16 epochs). Stochastic Depth (drop\_path=0.05) prevents overfitting across stages.
 \end{itemize}

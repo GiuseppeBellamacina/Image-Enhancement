@@ -7,14 +7,14 @@
 Department of Mathematics and Computer Science\\
 University of Catania, Italy\\
 Deep Learning Course --- A.Y. 2025/2026\\
-Professors: G.M. Farinella, G. Ragusa
+Professors: G.M. Farinella, F. Ragusa
 }
 }
 
 \maketitle
 
 \begin{abstract}
-We present a comprehensive comparative study of convolutional neural network architectures for image restoration under severe Gaussian noise ($\sigma = 100$). Seven distinct architectures are implemented within a unified, modular framework: UNet, UNet Residual, Attention UNet, DnCNN, Denoising Autoencoder, RIDNet, and Pix2Pix (conditional GAN). All models are trained and evaluated on the DIV2K dataset using consistent degradation, training infrastructure, and evaluation protocols. Our experiments demonstrate that RIDNet with 8 Enhancement Attention Blocks achieves the best overall performance (PSNR = 25.83~dB, SSIM = 0.725), followed closely by DnCNN (PSNR = 25.60~dB). We perform extensive ablation studies on architectural choices including upsampling strategies, attention mechanisms, loss function compositions, and training hyperparameters. Results show that residual learning, channel attention, and appropriate gradient clipping are critical factors for high-quality denoising under heavy noise conditions.
+We present a comprehensive comparative study of deep learning architectures for image restoration under severe Gaussian noise ($\sigma = 100$). Eight distinct architectures are implemented within a unified, modular framework: UNet, UNet Residual, Attention UNet, DnCNN, Denoising Autoencoder, RIDNet, NAFNet-V2, and Pix2Pix (conditional GAN). All models are trained on the DIV2K dataset using consistent degradation and evaluation protocols. Our experiments demonstrate that NAFNet-V2 with a multi-stage training pipeline achieves the best overall performance (PSNR = 26.36~dB, SSIM = 0.747), followed by Pix2Pix with residual learning (PSNR = 26.08~dB) and RIDNet (PSNR = 25.83~dB). We perform extensive ablation studies on architectural choices including upsampling strategies, attention mechanisms, loss functions, GAN stabilization, and multi-stage training. Results show that residual learning, advanced loss functions (Charbonnier), and staged training strategies are critical factors for high-quality denoising under heavy noise conditions.
 \end{abstract}
 
 \begin{IEEEkeywords}

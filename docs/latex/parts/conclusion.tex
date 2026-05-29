@@ -1,45 +1,37 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-This work presented a comprehensive comparative study of seven CNN-based architectures for image denoising under severe Gaussian noise ($\sigma = 100$). All models were implemented within a unified, modular framework and evaluated under identical conditions on the DIV2K dataset.
+This work presented a comprehensive comparative study of eight deep learning architectures for image denoising under severe Gaussian noise ($\sigma = 100$). All models were implemented within a unified, modular framework and evaluated under identical conditions on the DIV2K dataset.
 
 \subsection{Key Findings}
 
 \begin{enumerate}
-    \item \textbf{RIDNet achieves state-of-the-art performance} within our comparison (PSNR = 25.83~dB, SSIM = 0.725), demonstrating that the combination of dilated convolutions for multi-scale feature capture and channel attention for adaptive feature weighting is highly effective for heavy noise removal.
+    \item \textbf{NAFNet-V2 achieves state-of-the-art performance} within our comparison (PSNR = 26.36~dB, SSIM = 0.747), demonstrating that activation-free blocks with Stochastic Depth and a multi-stage training pipeline (Charbonnier loss + progressive fine-tuning) are highly effective for heavy noise removal.
     
-    \item \textbf{Residual learning is consistently beneficial} for sequential architectures (DnCNN, RIDNet), while encoder-decoder architectures show mixed results---the UNet with residual learning underperformed its direct-prediction counterpart due to insufficient training.
+    \item \textbf{Pix2Pix with residual learning ranks second} (PSNR = 26.08~dB, SSIM = 0.733), showing that adversarial training can benefit denoising when the generator operates in residual mode and the discriminator serves as a perceptual regularizer rather than driving hallucination.
+    
+    \item \textbf{Residual learning is consistently beneficial:} All top-4 models (NAFNet-V2, Pix2Pix, RIDNet, DnCNN) use residual learning, confirming that predicting noise is easier than reconstructing clean images from scratch.
     
     \item \textbf{Attention mechanisms require careful design:} Bottleneck-only attention with GroupNorm outperforms all-level attention with BatchNorm by +2.36~dB, suggesting that over-application of attention gates can disrupt feature propagation in skip connections.
     
-    \item \textbf{Upsampling strategy matters for structured degradations:} Learned transposed convolutions outperform bilinear upsampling on dithering (+1.21~dB) but show minimal difference on Gaussian noise, indicating that upsampling choice should be degradation-aware.
+    \item \textbf{Loss function choice impacts training stability:} Charbonnier loss provides +0.28~dB over standard L1 for NAFNet, while SSIM-based fine-tuning at aggressive learning rates can destabilize pre-trained weights.
     
-    \item \textbf{Training hyperparameters can dominate architecture choice:} A 10$\times$ learning rate reduction degrades DnCNN by 2.74~dB---more than the gap between the best and worst architectures. Gradient clipping (norm = 0.5) proved essential for RIDNet stability.
+    \item \textbf{Training hyperparameters can dominate architecture choice:} A 10$\times$ learning rate reduction degrades DnCNN by 2.74~dB---more than the gap between the best and worst architectures. GAN training requires careful discriminator-generator LR asymmetry.
     
-    \item \textbf{Skip connections dramatically accelerate convergence:} UNet variants converge in 10--36 epochs vs.\ 200 epochs for the skip-free Denoising Autoencoder, highlighting the importance of direct gradient paths for efficient training.
+    \item \textbf{Skip connections dramatically accelerate convergence:} UNet variants converge in 10--36 epochs vs.\ 200 epochs for the skip-free Denoising Autoencoder, highlighting the importance of direct gradient paths.
 \end{enumerate}
 
 \subsection{Architectural Insights}
 
-The results suggest a hierarchy of architectural components by importance:
+The results suggest a hierarchy of factors by importance:
 \begin{enumerate}
-    \item \textit{Learning paradigm} (residual vs.\ direct) --- largest impact for sequential networks;
-    \item \textit{Multi-scale feature capture} (dilated convolutions, large receptive fields) --- enables capturing noise at different frequencies;
-    \item \textit{Channel attention} (SE blocks) --- provides adaptive feature selection;
-    \item \textit{Skip connections} --- critical for training efficiency and high-frequency detail preservation;
-    \item \textit{Upsampling strategy} --- secondary for Gaussian noise but important for structured degradations.
+    \item \textit{Training strategy} (multi-stage, loss scheduling) --- largest impact when combined with appropriate architecture;
+    \item \textit{Learning paradigm} (residual vs.\ direct) --- critical for all architectures;
+    \item \textit{Loss function} (Charbonnier, adversarial regularization) --- enables finer optimization;
+    \item \textit{Multi-scale feature capture} (dilated convolutions, hierarchical encoders) --- captures noise at different frequencies;
+    \item \textit{Attention mechanisms} (channel attention, simplified channel attention) --- provides adaptive feature selection;
+    \item \textit{Skip connections} --- critical for training efficiency and high-frequency detail preservation.
 \end{enumerate}
-
-\subsection{Pending Work}
-
-\textbf{[TODO --- Daniele]:} The following contributions are pending integration:
-\begin{itemize}
-    \item \textbf{Pix2Pix} experimental results and analysis of GAN-based denoising advantages/limitations (perceptual quality vs.\ metric optimization);
-    \item \textbf{NAFNet}~\cite{nafnet} results demonstrating the viability of activation-free architectures;
-    \item \textbf{Swin2SR}~\cite{swin2sr} results comparing transformer-based approaches with purely convolutional methods.
-\end{itemize}
-
-These additions will enable a complete comparison spanning CNNs, GANs, and Transformers for the image restoration task.
 
 \subsection{Future Directions}
 

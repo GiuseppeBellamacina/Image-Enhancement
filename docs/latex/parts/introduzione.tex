@@ -3,7 +3,7 @@
 
 Image denoising is a fundamental problem in low-level computer vision, aiming to recover a clean image from its noisy observation. With the advent of deep learning, CNN-based approaches have largely superseded traditional methods such as BM3D and NLM, achieving state-of-the-art results across a variety of noise models and intensity levels~\cite{dncnn}.
 
-This work presents a systematic comparison of multiple deep learning architectures for image restoration. Rather than proposing a single novel method, we focus on implementing a \emph{unified experimental framework} that enables fair, reproducible comparisons across fundamentally different architectural paradigms: encoder-decoder networks with skip connections (UNet family), purely sequential residual networks (DnCNN), attention-augmented architectures (RIDNet, Attention UNet), and generative adversarial networks (Pix2Pix).
+This work presents a systematic comparison of multiple deep learning architectures for image restoration. Rather than proposing a single novel method, we focus on implementing a \emph{unified experimental framework} that enables fair, reproducible comparisons across fundamentally different architectural paradigms: encoder-decoder networks with skip connections (UNet family), purely sequential residual networks (DnCNN), attention-augmented architectures (RIDNet, Attention UNet), activation-free networks (NAFNet), and generative adversarial networks (Pix2Pix).
 
 All models are evaluated under identical conditions: the same dataset (DIV2K~\cite{div2k}), the same degradation model (additive Gaussian noise with $\sigma = 100$, a deliberately severe setting), and the same evaluation protocol (sliding-window inference with Hann blending on full-resolution images).
 
@@ -12,7 +12,7 @@ All models are evaluated under identical conditions: the same dataset (DIV2K~\ci
 The main contributions of this work are:
 \begin{itemize}
     \item A modular, extensible framework covering the complete pipeline from degradation generation through training to evaluation;
-    \item A fair comparison of seven architectures under controlled conditions, with extensive ablation studies;
+    \item A fair comparison of eight architectures under controlled conditions, with extensive ablation studies;
     \item Analysis of critical design choices: residual learning vs.\ direct prediction, bilinear vs.\ transposed convolution upsampling, batch normalization vs.\ group normalization, and multi-component loss functions.
 \end{itemize}
 
@@ -23,7 +23,7 @@ The project was developed collaboratively:
     \item \textbf{Giuseppe Bellamacina} --- UNet, UNet Residual, Attention UNet, and the shared infrastructure (degradations, training pipeline, evaluation, utilities);
     \item \textbf{Salvo Iurato} --- DnCNN and RIDNet;
     \item \textbf{Mattia Campanella} --- Denoising Autoencoder;
-    \item \textbf{Daniele Barbagallo} --- Pix2Pix, GAN, NAFNet, and Swin2SR.
+    \item \textbf{Daniele Barbagallo} --- Pix2Pix (conditional GAN) and NAFNet-V2.
 \end{itemize}
 
 \subsection{Paper Organization}

@@ -16,7 +16,7 @@ The UNet~\cite{unet} is an encoder-decoder architecture with skip connections, o
 \subsubsection{Architecture}
 The encoder consists of 4 downsampling stages, each comprising a \texttt{DoubleConv} block (two $3\!\times\!3$ convolutions with BatchNorm and ReLU) followed by $2\!\times\!2$ MaxPool:
 \begin{equation}
-\texttt{inc}(3 \!\to\! 64) \!\to\! \texttt{d}_1(64 \!\to\! 128) \!\to\! \texttt{d}_2(128 \!\to\! 256) \!\to\! \texttt{d}_3(256 \!\to\! 512) \!\to\! \texttt{d}_4(512 \!\to\! 1024)
+\resizebox{0.9\columnwidth}{!}{$\texttt{inc}(3 \!\to\! 64) \!\to\! \texttt{d}_1(64 \!\to\! 128) \!\to\! \texttt{d}_2(128 \!\to\! 256) \!\to\! \texttt{d}_3(256 \!\to\! 512) \!\to\! \texttt{d}_4(512 \!\to\! 1024)$}
 \end{equation}
 
 The decoder reconstructs spatial resolution via upsampling. Two modes are supported:
@@ -150,6 +150,44 @@ where $s$ is the \texttt{residual\_scale} (0.1 in our best experiments).
 Output is clamped to $[-1, 1]$ at inference.
 
 % ============================================================
+\subsection{NAFNet}
+\label{subsec:nafnet}
+
+\textit{Developed by: Daniele Barbagallo}
+
+\medskip
+
+NAFNet~\cite{nafnet} (\textit{Nonlinear Activation Free Network}) is a state-of-the-art image restoration architecture that replaces nonlinear activations with element-wise multiplication, achieving competitive performance with reduced computational cost.
+
+\subsubsection{NAFBlock}
+The core building block avoids traditional activations:
+\begin{enumerate}
+    \item \textbf{Channel attention branch:} LayerNorm $\to$ $1\!\times\!1$ Conv $\to$ Depthwise Conv ($3\!\times\!3$) $\to$ SimpleGate (channel split + element-wise product) $\to$ Simplified Channel Attention (GAP + $1\!\times\!1$ Conv) $\to$ $1\!\times\!1$ Conv.
+    \item \textbf{FFN branch:} LayerNorm $\to$ $1\!\times\!1$ Conv $\to$ SimpleGate $\to$ $1\!\times\!1$ Conv.
+    \item \textbf{Residual scaling:} Both branches use learnable scaling factors ($\beta$, $\gamma$).
+\end{enumerate}
+\begin{equation}
+\text{NAFBlock}(x) = x + \beta \cdot \text{Attn}(x) + \gamma \cdot \text{FFN}(x + \beta \cdot \text{Attn}(x))
+\end{equation}
+
+\subsubsection{Full Architecture}
+The model follows a UNet-like hierarchical structure:
+\begin{itemize}
+    \item \textbf{Encoder:} 4 levels with $[1, 1, 2, 8]$ NAFBlocks, downsampling via strided convolutions (width = 64).
+    \item \textbf{Middle:} 1 NAFBlock at the bottleneck.
+    \item \textbf{Decoder:} 4 levels with $[1, 1, 1, 1]$ NAFBlocks, upsampling via pixel-shuffle.
+    \item \textbf{Skip connections:} Element-wise addition between encoder and decoder features.
+\end{itemize}
+
+\subsubsection{V2 Modifications}
+Our implementation (NAFNet-V2) introduces:
+\begin{itemize}
+    \item \textbf{Stochastic Depth (DropPath):} Applied within NAFBlocks with linearly increasing drop rate (0 at input, 0.05 at bottleneck), preventing overfitting.
+    \item \textbf{Charbonnier Loss:} $\mathcal{L} = \sqrt{\|x - y\|^2 + \epsilon^2}$, a smooth L1 variant that eliminates gradient discontinuity at zero.
+    \item \textbf{Multi-stage training:} Base $\to$ Fork (reduced patches) $\to$ Fine-tune (low LR), totaling 128 effective epochs across 3 stages.
+\end{itemize}
+
+% ============================================================
 \subsection{Pix2Pix}
 \label{subsec:pix2pix}
 
@@ -177,28 +215,6 @@ In our experiments, the generator operates in \textbf{residual learning} mode: i
 Predicted noise is additionally clamped to $\pm 0.6$ for stability.
 
 % ============================================================
-\subsection{NAFNet}
-\label{subsec:nafnet}
-
-\textit{Developed by: Daniele Barbagallo}
-
-\medskip
-
-% TODO: Section to be completed by Daniele --- NAFNet experiments and architecture description.
-\textbf{[TODO --- Daniele]:} NAFNet~\cite{nafnet} (Nonlinear Activation Free Network) architecture description and implementation details to be added.
-
-% ============================================================
-\subsection{Swin2SR}
-\label{subsec:swin2sr}
-
-\textit{Developed by: Daniele Barbagallo}
-
-\medskip
-
-% TODO: Section to be completed by Daniele --- Swin2SR experiments and architecture description.
-\textbf{[TODO --- Daniele]:} Swin2SR~\cite{swin2sr} (SwinV2 Transformer for image restoration) architecture description and implementation details to be added.
-
-% ============================================================
 \subsection{Architecture Summary}
 
 \begin{table}[t]
@@ -215,9 +231,10 @@ Attention UNet & Enc-Dec + skip & No & AG & Linear \\
 DnCNN & Sequential & Yes & No & Clamp \\
 Denoising AE & Enc-Dec (no skip) & No & No & Tanh \\
 RIDNet & Feature + EAB & Yes & Channel & Clamp \\
+NAFNet & Hierarchical UNet & Yes & SCA & Linear \\
 Pix2Pix Gen. & UNet-like (7L) & Config. & No & Tanh \\
 \bottomrule
 \end{tabular}
-\caption{Summary of implemented architectures. AG = Attention Gates; Channel = Squeeze-and-Excitation channel attention.}
+\caption{Summary of implemented architectures. AG = Attention Gates; Channel = Squeeze-and-Excitation; SCA = Simplified Channel Attention.}
 \label{tab:architectures}
 \end{table}

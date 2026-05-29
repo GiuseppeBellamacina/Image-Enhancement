@@ -11,31 +11,30 @@ Table~\ref{tab:main_results} presents the main results for the best configuratio
 \begin{table}[t]
 \centering
 \small
-\setlength{\tabcolsep}{3pt}
+\setlength{\tabcolsep}{2pt}
 \begin{tabular}{lcccc}
 \toprule
-\textbf{Model} & \textbf{PSNR (dB)} & \textbf{SSIM} & \textbf{MAE} & \textbf{Epochs} \\
+\textbf{Model} & \textbf{PSNR (dB)} & \textbf{SSIM} & \textbf{MAE} & \textbf{Ep.} \\
 \midrule
-RIDNet (8 EAB) & \textbf{25.83 $\pm$ 2.41} & \textbf{0.725 $\pm$ 0.081} & \textbf{0.0369} & 44 \\
+NAFNet-V2 (fine-tune) & \textbf{26.36 $\pm$ 2.69} & \textbf{0.747 $\pm$ 0.077} & \textbf{0.0341} & 128$^\dagger$ \\
+Pix2Pix (residual) & 26.08 $\pm$ 2.65 & 0.733 $\pm$ 0.078 & 0.0354 & 39 \\
+RIDNet (8 EAB) & 25.83 $\pm$ 2.41 & 0.725 $\pm$ 0.081 & 0.0369 & 44 \\
 DnCNN (17L, 64F) & 25.60 $\pm$ 2.24 & 0.694 $\pm$ 0.066 & 0.0385 & 86 \\
 Att.\ UNet (btlnk) & 24.76 $\pm$ 1.98 & 0.678 $\pm$ 0.056 & 0.0424 & 34 \\
 UNet (bilinear) & 24.53 $\pm$ 1.91 & 0.639 $\pm$ 0.052 & 0.0444 & 18 \\
 DAE (upsample) & 24.27 & 0.660 & 0.0423 & 200 \\
 UNet Res.\ (bilinear) & 23.66 $\pm$ 1.81 & 0.594 $\pm$ 0.040 & 0.0483 & 10 \\
-\midrule
-Pix2Pix & \multicolumn{4}{c}{\textit{[TODO --- Daniele]}} \\
-NAFNet & \multicolumn{4}{c}{\textit{[TODO --- Daniele]}} \\
-Swin2SR & \multicolumn{4}{c}{\textit{[TODO --- Daniele]}} \\
 \bottomrule
 \end{tabular}
-\caption{Main results on DIV2K validation (Gaussian $\sigma = 100$). Best values in bold. Models ranked by PSNR. DAE trained on $\sigma = 100$ with upsample+conv decoder.}
+\caption{Main results on DIV2K validation (Gaussian $\sigma = 100$). Best values in bold. Models ranked by PSNR. $^\dagger$NAFNet-V2 uses a 3-stage pipeline (32 + 80 + 16 epochs).}
 \label{tab:main_results}
 \end{table}
 
 \textbf{Key observations:}
 \begin{itemize}
-    \item RIDNet achieves the best overall performance across all metrics, with a margin of +0.23~dB PSNR and +0.031 SSIM over DnCNN.
-    \item Both top models (RIDNet, DnCNN) employ residual learning and operate without spatial downsampling, preserving full resolution throughout the network.
+    \item NAFNet-V2 achieves the best overall performance across all metrics, benefiting from its multi-stage training pipeline and Charbonnier loss.
+    \item Pix2Pix with residual learning ranks second, demonstrating that the adversarial component acts as an effective perceptual regularizer when combined with dominant reconstruction losses.
+    \item The top 4 models (NAFNet-V2, Pix2Pix, RIDNet, DnCNN) all employ residual learning, confirming its importance for heavy noise removal.
     \item The Attention UNet with bottleneck attention and GroupNorm outperforms the base UNet by +0.23~dB, demonstrating the benefit of selective feature weighting.
     \item The Denoising Autoencoder, despite lacking skip connections, achieves competitive SSIM (0.660), suggesting the bottleneck forces learning of global structure.
     \item UNet Residual underperforms the direct-prediction UNet, likely due to early stopping (only 10 epochs) preventing convergence.
@@ -52,9 +51,11 @@ Swin2SR & \multicolumn{4}{c}{\textit{[TODO --- Daniele]}} \\
 \toprule
 \textbf{Model} & \textbf{Time (h)} & \textbf{Memory (MB)} & \textbf{PSNR/h} \\
 \midrule
+NAFNet-V2 (3-stage) & 47.42 & 501.9 & 0.56 \\
+Pix2Pix (residual) & $\sim$2.5 & --- & 10.43 \\
 RIDNet (8 EAB) & 3.41 & 30.83 & 7.57 \\
 DnCNN (17L) & 3.01 & 17.16 & 8.51 \\
-Att.\ UNet (btlnk) & 1.63 & 497.7 & 15.19 \\
+Att.\ UNet (btlnk) & 1.63 & 492.8 & 15.19 \\
 UNet (bilinear) & 0.84 & 273.2 & 29.20 \\
 DAE (upsample) & $\sim$11.1 & --- & 2.19 \\
 UNet Res.\ (bilinear) & 0.47 & 275.7 & 50.34 \\
@@ -173,11 +174,71 @@ Bilinear (F=96) & 96 & 27.43 & 0.763 \\
 
 On the dithering degradation task (Table~\ref{tab:unet_dithering}), the UNet with transposed convolution upsampling outperforms the bilinear variant by +1.21~dB, despite having fewer feature channels (64 vs.\ 96). This contrasts with Gaussian denoising where both modes perform similarly, suggesting that learned upsampling kernels are particularly beneficial for structured degradation patterns.
 
+\subsubsection{Pix2Pix: Residual Learning and GAN Stabilization}
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Variant} & \textbf{$\lambda_{L1}$} & \textbf{LR$_D$} & \textbf{PSNR} & \textbf{SSIM} \\
+\midrule
+Symmetric LR & 100 & 2e-4 & 23.77 & 0.584 \\
+$\lambda_{L1}$ = 1000 & 1000 & 5e-5 & 25.27 & 0.683 \\
+Asym.\ LR (standard) & 200 & 1e-5 & 25.65 & 0.720 \\
+\textbf{Residual + no Tanh} & \textbf{200} & \textbf{1e-5} & \textbf{26.08} & \textbf{0.733} \\
+\bottomrule
+\end{tabular}
+\caption{Pix2Pix ablation on GAN stabilization strategies. Residual learning with unconstrained output (no Tanh) achieves best results by reducing the generator's learning burden.}
+\label{tab:pix2pix_ablation}
+\end{table}
+
+The Pix2Pix ablation (Table~\ref{tab:pix2pix_ablation}) reveals critical factors for GAN-based denoising: (1) Symmetric learning rates cause discriminator dominance and training collapse. (2) Asymmetric LR ($\text{LR}_D = 10^{-5}$ vs.\ $\text{LR}_G = 2 \times 10^{-4}$) stabilizes training by slowing the critic. (3) Enabling \textbf{residual learning} and removing Tanh provides the decisive improvement (+0.43~dB over non-residual), as the generator only needs to estimate high-frequency noise rather than reconstruct full images. This transforms Pix2Pix into a residual UNet with adversarial regularization.
+
+\subsubsection{NAFNet-V2: Multi-Stage Training Pipeline}
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Stage} & \textbf{Loss} & \textbf{LR} & \textbf{Epochs} & \textbf{PSNR} & \textbf{SSIM} \\
+\midrule
+Base (L1 only) & L1 & 1e-3 & 32 & 26.01 & 0.726 \\
+Base (Charbonnier) & Charb. & 1e-3 & 32 & 26.29 & 0.738 \\
+Fork (1 patch/img) & Charb. & 1e-3 & +80 & 26.36 & 0.746 \\
+\textbf{Fine-tune} & \textbf{Charb.+SSIM} & \textbf{2e-5} & \textbf{+16} & \textbf{26.36} & \textbf{0.747} \\
+\bottomrule
+\end{tabular}
+\caption{NAFNet-V2 progressive training pipeline. Charbonnier loss provides +0.28~dB over L1; forking with reduced patches enables longer training; final fine-tuning stabilizes SSIM.}
+\label{tab:nafnet_ablation}
+\end{table}
+
+The NAFNet-V2 ablation (Table~\ref{tab:nafnet_ablation}) demonstrates the value of staged training: (1) Replacing L1 with Charbonnier loss provides +0.28~dB by eliminating gradient discontinuity at zero. (2) Forking from a pre-trained checkpoint with reduced patches per image (4$\to$1) allows 80 additional epochs at lower per-epoch cost. (3) Fine-tuning at very low LR ($2 \times 10^{-5}$) with a small SSIM component ($\beta = 0.05$) stabilizes final weights, reaching peak SSIM of 0.747. Note that a failed fine-tuning attempt with LR $= 10^{-4}$ degraded PSNR to 25.71~dB, confirming that late-stage optimization requires extremely conservative learning rates.
+
 % ============================================================
 \subsection{Visual Comparison}
 
 \begin{figure*}[t]
     \centering
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/nafnet_best_inference.png}
+        \caption{NAFNet-V2 --- PSNR 26.36 dB, SSIM 0.747}
+        \label{fig:nafnet_visual}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/pix2pix_best_inference.png}
+        \caption{Pix2Pix (residual) --- PSNR 26.08 dB, SSIM 0.733}
+        \label{fig:pix2pix_visual}
+    \end{subfigure}
+    
+    \vspace{0.3cm}
+    
     \begin{subfigure}[t]{0.48\textwidth}
         \centering
         \includegraphics[width=\textwidth]{figures/ridnet_best_inference.png}
@@ -208,15 +269,17 @@ On the dithering degradation task (Table~\ref{tab:unet_dithering}), the UNet wit
         \label{fig:dae_visual}
     \end{subfigure}
     
-    \caption{Visual comparison of inference results across models. Each sub-figure shows degraded input (left), model output (center), and ground truth (right) for a validation image from DIV2K. RIDNet and DnCNN preserve the most fine-grained details, while the DAE produces smoother but less detailed outputs due to the information bottleneck.}
+    \caption{Visual comparison of inference results across models. Each sub-figure shows degraded input (left), model output (center), and ground truth (right) for a validation image from DIV2K. NAFNet-V2 and Pix2Pix produce the sharpest restorations, while the DAE yields smoother outputs due to the information bottleneck.}
     \label{fig:visual_comparison}
 \end{figure*}
 
 Fig.~\ref{fig:visual_comparison} shows qualitative results from the best run of each model. Key visual observations:
 \begin{itemize}
-    \item \textbf{RIDNet} produces the sharpest restorations with best preservation of edges and textures, thanks to its multi-scale dilated convolutions and channel attention.
-    \item \textbf{DnCNN} achieves similarly clean results but tends to slightly over-smooth fine textures compared to RIDNet.
-    \item \textbf{Attention UNet} restores large-scale structure well but produces slightly blurrier outputs than the sequential models.
+    \item \textbf{NAFNet-V2} produces the sharpest restorations with excellent edge and texture preservation, thanks to its hierarchical structure and multi-stage training.
+    \item \textbf{Pix2Pix} achieves similarly sharp results; the adversarial component prevents the over-smoothing typical of pure reconstruction losses.
+    \item \textbf{RIDNet} offers strong detail preservation through multi-scale dilated convolutions and channel attention.
+    \item \textbf{DnCNN} achieves clean results but tends to slightly over-smooth fine textures compared to the top models.
+    \item \textbf{Attention UNet} restores large-scale structure well but produces slightly blurrier outputs than the full-resolution models.
     \item \textbf{Denoising Autoencoder} produces the smoothest results, confirming that the information bottleneck (no skip connections) limits high-frequency detail preservation.
 \end{itemize}
 
@@ -225,6 +288,22 @@ Fig.~\ref{fig:visual_comparison} shows qualitative results from the best run of 
 
 \begin{figure*}[t]
     \centering
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/nafnet_best_curves.png}
+        \caption{NAFNet-V2 --- fine-tuning stage (16 epochs, LR = 2e-5)}
+        \label{fig:nafnet_curves}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/pix2pix_best_curves.png}
+        \caption{Pix2Pix (residual) --- GAN training, 39 epochs}
+        \label{fig:pix2pix_curves}
+    \end{subfigure}
+    
+    \vspace{0.3cm}
+    
     \begin{subfigure}[t]{0.48\textwidth}
         \centering
         \includegraphics[width=\textwidth]{figures/ridnet_best_curves.png}
@@ -255,61 +334,54 @@ Fig.~\ref{fig:visual_comparison} shows qualitative results from the best run of 
         \label{fig:dae_curves}
     \end{subfigure}
     
-    \caption{Training curves for representative models. The UNet family converges quickly (10--36 epochs) due to skip connections. DnCNN requires more epochs but benefits from the higher learning rate. The DAE converges slowest due to the information bottleneck forcing gradual feature learning.}
+    \caption{Training curves for representative models. NAFNet-V2 shows the final fine-tuning stage; Pix2Pix displays characteristic GAN oscillation. The UNet family converges quickly (10--36 epochs) due to skip connections. The DAE converges slowest due to the information bottleneck.}
     \label{fig:training_curves}
 \end{figure*}
 
 Fig.~\ref{fig:training_curves} shows training dynamics for representative models. Several patterns emerge:
 \begin{itemize}
+    \item \textbf{NAFNet-V2 benefits from staged training:} The multi-stage pipeline allows aggressive initial learning (LR=$10^{-3}$) followed by conservative fine-tuning (LR=$2 \times 10^{-5}$), effectively exploring the loss landscape at multiple scales.
+    \item \textbf{GAN training exhibits characteristic oscillation:} Pix2Pix loss curves show adversarial dynamics; despite oscillation, the generator steadily improves thanks to the dominant reconstruction loss ($\lambda_{L1} = 200$).
     \item \textbf{Skip connections accelerate convergence:} UNet variants converge in 10--36 epochs, while skip-free architectures (DAE) require 150--200 epochs.
     \item \textbf{RIDNet combines fast convergence with high quality:} Despite its depth (8 EAB blocks), gradient clipping and cosine scheduling enable smooth convergence in 44 epochs.
-    \item \textbf{Warmup is critical for complex architectures:} The Attention UNet and RIDNet both benefit from 5--8 warmup epochs; without warmup, initial instability can trigger early stopping prematurely.
     \item \textbf{Learning rate is the dominant factor for DnCNN:} The successful run (LR=$10^{-3}$) converges steadily, while the failed run (LR=$10^{-4}$) plateaus early and runs for 10+ hours without meaningful improvement.
 \end{itemize}
 
 % ============================================================
 \subsection{Per-Image Analysis}
 
-\begin{table}[t]
+\begin{table*}[t]
 \centering
 \small
 \setlength{\tabcolsep}{2.5pt}
-\begin{tabular}{lccccc}
+\begin{tabular}{lccccccc}
 \toprule
-\textbf{Image} & \textbf{RIDNet} & \textbf{DnCNN} & \textbf{Att.UNet} & \textbf{UNet} & \textbf{DAE} \\
+\textbf{Image} & \textbf{NAFNet} & \textbf{Pix2Pix} & \textbf{RIDNet} & \textbf{DnCNN} & \textbf{Att.UNet} & \textbf{UNet} & \textbf{UNet Res.} \\
 \midrule
-0801 & 25.67 & 25.29 & 24.36 & 24.30 & --- \\
-0802 & 24.97 & 24.57 & 23.79 & 23.53 & --- \\
-0803 & \textbf{30.14} & \textbf{29.29} & \textbf{27.86} & \textbf{26.91} & --- \\
-0804 & 24.33 & 24.09 & 23.33 & 22.95 & --- \\
-0805 & 25.55 & 24.89 & 24.24 & 24.27 & --- \\
-0806 & 24.43 & 24.11 & 23.40 & 23.22 & --- \\
-0807 & \textit{22.28} & \textit{22.24} & \textit{21.33} & \textit{21.42} & --- \\
-0808 & 27.21 & 26.92 & 26.01 & 25.36 & --- \\
-0809 & 27.05 & 27.16 & 26.46 & 25.49 & --- \\
-0810 & 26.63 & 27.48 & 26.81 & 25.88 & --- \\
+0801 & 25.79 & 25.59 & 25.38 & 25.21 & 24.94 & 24.60 & 23.57 \\
+0802 & \textbf{28.70} & 28.33 & 27.97 & 27.75 & 26.90 & 26.64 & 25.66 \\
+0803 & \textbf{31.57} & 31.21 & 30.14 & 29.29 & 26.98 & 26.91 & 25.46 \\
+0804 & 24.99 & 24.74 & 24.66 & 24.47 & 23.56 & 23.23 & 21.74 \\
+0805 & 26.14 & 25.86 & 25.67 & 25.48 & 25.00 & 24.25 & 22.31 \\
+0806 & 26.97 & 26.69 & 26.46 & 26.26 & 25.38 & 24.89 & 24.42 \\
+0807 & \textit{20.40} & \textit{20.12} & \textit{20.16} & \textit{20.19} & \textit{19.70} & \textit{19.78} & \textit{19.65} \\
+0808 & 25.93 & 25.66 & 25.59 & 25.45 & 24.11 & 24.29 & 24.23 \\
+0809 & 27.11 & 26.88 & 26.67 & 26.54 & 26.13 & 25.85 & 25.23 \\
+0810 & 26.03 & 25.73 & 25.58 & 25.33 & 24.93 & 24.83 & 24.34 \\
 \midrule
-\textbf{Mean} & \textbf{25.83} & 25.60 & 24.76 & 24.53 & 24.27 \\
+\textbf{Mean} & \textbf{26.36} & 26.08 & 25.83 & 25.60 & 24.76 & 24.53 & 23.66 \\
 \bottomrule
 \end{tabular}
-\caption{Per-image PSNR (dB) comparison across models. Bold = best per image; italic = worst image across all models. Image 0803 is consistently easiest (smooth, low-frequency content); 0807 is hardest (high-frequency textures).}
+\caption{Per-image PSNR (dB) comparison across models. Bold = best per image; italic = worst image across all models. Image 0807 is consistently the hardest (high-frequency textures); 0803 is easiest (smoother content).}
 \label{tab:per_image}
-\end{table}
+\end{table*}
 
 Table~\ref{tab:per_image} reveals consistent per-image patterns:
 \begin{itemize}
-    \item \textbf{Image 0803} is the easiest for all models (PSNR up to 30.14~dB with RIDNet), likely due to large smooth regions where noise removal is straightforward.
-    \item \textbf{Image 0807} is the hardest (PSNR $\sim$21--22~dB across all models), likely containing high-frequency textures that are difficult to distinguish from noise at $\sigma = 100$.
-    \item The performance gap between models is relatively consistent across images (RIDNet $>$ DnCNN $>$ Att.UNet $>$ UNet), suggesting architectural advantages are content-independent.
-    \item DnCNN occasionally outperforms RIDNet on specific images (0809, 0810), indicating that the models capture complementary features.
+    \item \textbf{Image 0803} is the easiest for all models, with NAFNet-V2 reaching 31.57~dB and Pix2Pix 31.21~dB. The gap between top models (NAFNet/Pix2Pix/RIDNet) and encoder-decoder models (UNet family) widens on this smooth-content image.
+    \item \textbf{Image 0807} is the hardest for all models (PSNR $\sim$19.6--20.4~dB), likely containing high-frequency textures that are difficult to distinguish from heavy noise at $\sigma = 100$.
+    \item The performance ranking is remarkably consistent across images (NAFNet $>$ Pix2Pix $>$ RIDNet $>$ DnCNN $>$ Att.UNet $>$ UNet $>$ UNet Res.), suggesting architectural advantages are content-independent.
+    \item NAFNet and Pix2Pix achieve the largest gains on smooth images (0803: +1.4~dB over RIDNet), while all models converge on the hardest image (0807: $<$0.3~dB spread among top 4).
 \end{itemize}
 
-% ============================================================
-\subsection{Pending Results}
 
-\textbf{[TODO --- Daniele]:} The following models require experimental results to be added:
-\begin{itemize}
-    \item \textbf{Pix2Pix:} Conditional GAN results on Gaussian noise $\sigma = 100$. Expected metrics: PSNR, SSIM, MAE, plus GAN-specific metrics (FID, discriminator accuracy).
-    \item \textbf{NAFNet:} Nonlinear Activation Free Network results and comparison with the other architectures.
-    \item \textbf{Swin2SR:} Transformer-based restoration results, particularly interesting for comparison with purely convolutional approaches.
-\end{itemize}

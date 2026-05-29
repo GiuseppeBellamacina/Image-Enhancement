@@ -1,0 +1,109 @@
+\chapter{Training}
+
+\section{Pipeline di addestramento}
+
+Il training loop \`e implementato nel modulo \texttt{trainer.py} e supporta tutte le architetture tramite un'interfaccia unificata. La funzione \texttt{run\_training} orchestra l'intero processo: warmup del learning rate, alternanza train/validation, checkpointing, early stopping e logging.
+
+\subsection{Mixed Precision (AMP)}
+
+Tutti gli esperimenti (eccetto il Denoising Autoencoder) utilizzano Automatic Mixed Precision di PyTorch: le operazioni nel forward pass vengono eseguite in FP16 con \texttt{torch.autocast}, mentre la loss viene sempre calcolata in FP32 per stabilit\`a numerica. Un \texttt{GradScaler} gestisce il ridimensionamento dei gradienti.
+
+La validazione viene eseguita \textbf{sempre in full precision}, indipendentemente dall'impostazione AMP, per evitare instabilit\`a causate dall'interazione tra BatchNorm in modalit\`a eval e FP16.
+
+\subsection{Learning Rate Warmup}
+
+I primi \texttt{warmup\_epochs} (tipicamente 5--8) utilizzano un warmup lineare del learning rate da \texttt{warmup\_start\_lr} (o $\text{lr} \times \frac{\text{epoch}}{\text{warmup\_epochs}}$ se non specificato) fino al learning rate target. Lo scheduler principale (CosineAnnealing o StepLR) viene attivato solo al termine del warmup.
+
+\subsection{Gradient Clipping}
+
+I gradienti vengono clippati tramite \texttt{clip\_grad\_norm\_} con norma massima configurabile (tipicamente 0.5--1.0). In caso di AMP, i gradienti vengono prima ``unscaled'' dal \texttt{GradScaler} prima del clipping.
+
+\subsection{Early Stopping}
+
+Il contatore di patience viene incrementato solo nelle epoche di validazione in cui la val loss non migliora. Questo permette di configurare la validazione a intervalli (es.\ ogni 2 epoche) senza penalizzare il conteggio.
+
+\subsection{Gestione errori OOM}
+
+In caso di errore \textit{Out of Memory} durante il training, il sistema:
+\begin{enumerate}
+    \item Salva un checkpoint di emergenza
+    \item Libera la memoria CUDA
+    \item Stampa un messaggio diagnostico con suggerimenti (ridurre batch/patch size, abilitare AMP)
+\end{enumerate}
+
+% ============================================================
+\section{Training Pix2Pix}
+
+Il training del Pix2Pix segue il paradigma GAN con addestramento alternato di generatore e discriminatore.
+
+\subsection{Training del Discriminatore}
+
+Il discriminatore riceve coppie di immagini (condizionale + target):
+\begin{itemize}
+    \item \textbf{Coppie reali:} $(x_{\text{degraded}},\; x_{\text{clean}}) \to$ label 1
+    \item \textbf{Coppie false:} $(x_{\text{degraded}},\; G(x_{\text{degraded}})) \to$ label 0
+\end{itemize}
+
+La loss del discriminatore \`e:
+$$
+\mathcal{L}_D = \frac{1}{2}\left(\text{BCE}(D(x, y_{\text{real}}), 1) + \text{BCE}(D(x, y_{\text{fake}}), 0)\right)
+$$
+
+\subsection{Training del Generatore}
+
+La loss del generatore combina la componente avversariale con una loss di ricostruzione:
+$$
+\mathcal{L}_G = \text{BCE}(D(x, G(x)), 1) + \lambda_{\text{L1}} \cdot \mathcal{L}_{\text{reconstruction}}(G(x), y)
+$$
+
+dove $\lambda_{\text{L1}} = 150$ e la loss di ricostruzione \`e la \texttt{CombinedLoss} (L1 + SSIM). Il fattore $\lambda_{\text{L1}}$ elevato bilancia la componente avversariale, che tende a dominare nelle prime fasi del training.
+
+\subsection{Diagnostica del rumore}
+
+In modalit\`a residual learning, vengono monitorate statistiche sul rumore predetto: media, deviazione standard, valore massimo, percentuale di outlier (valori che superano il clamp prima del clamping) e percentuale di pixel clippati nell'output.
+
+% ============================================================
+\section{Configurazioni degli esperimenti}
+
+La tabella seguente riassume gli iperparametri principali di ciascun esperimento condotto. Tutti gli esperimenti utilizzano il dataset DIV2K con rumore gaussiano $\sigma = 100$, salvo diversa indicazione.
+
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lccccccc}
+\toprule
+\textbf{Modello} & \textbf{Loss} & \textbf{LR} & \textbf{Epoche} & \textbf{Batch} & \textbf{Patch} & \textbf{Warmup} & \textbf{Patience} \\
+\midrule
+UNet (bilinear) & L1+SSIM & 1e-4 & 36 & 16 & 128 & 5 & 5 \\
+UNet Res. (bilinear) & L1+SSIM+VGG & 1e-4 & 36 & 16 & 128 & 5 & 5 \\
+UNet Res. (transconv) & L1+SSIM+VGG & 1e-4 & 36 & 16 & 128 & 5 & 5 \\
+Att.\ UNet (bilinear, all) & L1+SSIM+VGG & 4e-5 & 36 & 16 & 128 & 8 & 5 \\
+Att.\ UNet (bilinear, btlnk) & L1+SSIM+VGG & 4e-5 & 36 & 16 & 128 & 8 & 3 \\
+Att.\ UNet (transconv, all) & L1+SSIM+VGG & 4e-5 & 36 & 16 & 128 & 8 & 5 \\
+Att.\ UNet (transconv, btlnk) & L1+SSIM+VGG & 4e-5 & 36 & 16 & 128 & 8 & 5 \\
+\midrule
+DnCNN-20 & L1+SSIM & 1e-4 & 100 & 64 & 80 & --- & 10 \\
+Denoising AE & L1+SSIM & 1e-4 & 200 & 40 & 128 & 2 & 15 \\
+RIDNet (8 EAB) & L1+SSIM & 1e-4 & 150 & 8 & 256 & 5 & 10 \\
+\midrule
+Pix2Pix & GAN+L1+SSIM & G:2e-4 & 150 & 8 & 384 & --- & 25 \\
+\bottomrule
+\end{tabular}
+\caption{Iperparametri di training per ciascun esperimento. Le loss L1+SSIM usano pesi $\alpha\!=\!0.84, \beta\!=\!0.16$; le loss L1+SSIM+VGG usano $\alpha\!=\!0.6, \beta\!=\!0.25, \gamma\!=\!0.15$ (salvo varianti bottleneck con $0.65/0.3/0.05$).}
+\label{tab:iperparametri}
+\end{table}
+
+\subsection{Note sugli esperimenti}
+
+\begin{itemize}
+    \item \textbf{Ottimizzatore:} Tutti i modelli usano AdamW ($\text{weight\_decay} = 10^{-5}$), eccetto DnCNN e RIDNet che usano Adam ($\text{weight\_decay} = 10^{-4}$) e Pix2Pix che usa Adam con $\beta_1 = 0.5$.
+    
+    \item \textbf{Scheduler:} CosineAnnealingLR per la maggior parte dei modelli; StepLR (step=1, $\gamma\!=\!0.96$) per DnCNN; ReduceLROnPlateau per il discriminatore Pix2Pix; nessuno scheduler per il generatore Pix2Pix.
+    
+    \item \textbf{Attention UNet --- varianti bottleneck:} Utilizzano GroupNorm invece di BatchNorm, layer percettuali meno profondi (\texttt{relu1\_2} + \texttt{relu2\_2} anzich\'e \texttt{relu2\_2} + \texttt{relu3\_3}) e peso percettuale ridotto ($\gamma = 0.05$).
+    
+    \item \textbf{RIDNet:} Utilizza 8 EAB con \texttt{residual\_scale} = 0.1, feature a 96 canali (anzich\'e 64) e gradient clip a 0.5 (pi\`u restrittivo della norma 1.0 usata dagli altri).
+    
+    \item \textbf{Dithering:} Sono stati condotti due esperimenti anche con degradazione di tipo quantizzazione a 2 bit con random dithering, usando la UNet base.
+\end{itemize}

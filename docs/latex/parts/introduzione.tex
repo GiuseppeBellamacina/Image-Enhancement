@@ -1,0 +1,34 @@
+\chapter{Introduzione}
+
+\section{Obiettivo del progetto}
+
+Il presente progetto si propone di studiare e confrontare diversi approcci basati su reti neurali convoluzionali (CNN) per il problema dell'\textit{image enhancement}, ovvero il restauro di immagini corrotte da degradazioni controllate. L'obiettivo \`e duplice: da un lato implementare una pipeline completa e modulare che copra l'intero ciclo \emph{degradazione $\to$ addestramento $\to$ valutazione}; dall'altro analizzare empiricamente le differenze architetturali tra i modelli proposti, confrontandone le prestazioni in termini di metriche quantitative (PSNR, SSIM) e qualit\`a percettiva.
+
+\section{Suddivisione del lavoro}
+
+Il progetto \`e stato sviluppato da quattro componenti, ciascuno responsabile di specifiche architetture:
+
+\begin{itemize}
+    \item \textbf{Giuseppe Bellamacina} --- UNet, UNet Residual, Attention UNet e infrastruttura comune (degradazioni, pipeline di training, valutazione, utilit\`a);
+    \item \textbf{Salvo Iurato} --- Denoising Autoencoder, DnCNN e RIDNet;
+    \item \textbf{Mattia Campanella} --- NAFNet;
+    \item \textbf{Daniele Barbagallo} --- Pix2Pix e GAN.
+\end{itemize}
+
+\section{Dataset}
+
+Il dataset utilizzato \`e \textbf{DIV2K}~\cite{div2k}, composto da 800 immagini di training e 100 immagini di validazione ad alta risoluzione ($\sim\!2$K). Le immagini vengono scaricate automaticamente dal server ETH di Zurigo tramite il modulo \texttt{download\_dataset.py} e salvate nella directory \texttt{data/raw/}.
+
+Dalle immagini originali vengono generate le versioni degradate in modo controllato e riproducibile, salvate con una struttura organizzata sotto \texttt{data/degraded/}. Il sistema supporta la generazione automatica con naming conventions coerenti (ad esempio \texttt{data/degraded/gaussian/sigma\_100/DIV2K\_train\_HR/}).
+
+\section{Pipeline generale}
+
+Il flusso di lavoro del progetto si articola in tre fasi principali:
+
+\begin{enumerate}
+    \item \textbf{Degradazione:} Le immagini pulite vengono corrotte con degradazioni parametrizzabili (rumore gaussiano, dithering, salt-and-pepper). Ogni tipo di corruzione \`e implementato in un modulo dedicato e pu\`o essere applicato in batch all'intero dataset.
+    
+    \item \textbf{Addestramento:} I modelli CNN vengono addestrati su coppie (immagine degradata, immagine pulita) estratte come patch casuali. Il sistema di training \`e unificato e supporta mixed precision (AMP), warmup del learning rate, scheduler coseno, early stopping e checkpointing automatico.
+    
+    \item \textbf{Valutazione:} Le immagini restaurate vengono confrontate con i ground truth tramite metriche quantitative. L'inferenza su immagini full-resolution avviene tramite \textit{sliding window} con blending pesato per evitare artefatti ai bordi delle patch.
+\end{enumerate}

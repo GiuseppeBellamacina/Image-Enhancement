@@ -1,0 +1,61 @@
+\chapter{Degradazioni}
+
+Le degradazioni sono il punto di partenza della pipeline: trasformano le immagini pulite in versioni corrotte che i modelli dovranno imparare a restaurare. Sono state implementate tre tipologie di degradazione, ciascuna parametrizzabile e riproducibile tramite seed.
+
+\section{Rumore Gaussiano}
+
+Il rumore gaussiano \`e la degradazione principale utilizzata negli esperimenti. Dato un pixel con valore $x$, l'immagine corrotta si ottiene come:
+$$
+\tilde{x} = \text{clip}\!\left(x + \mathcal{N}(0, \sigma^2),\; 0,\; 255\right)
+$$
+
+dove $\sigma$ controlla l'intensit\`a del rumore. Negli esperimenti \`e stato utilizzato $\sigma = 100$, un valore volutamente elevato per mettere alla prova la capacit\`a di restauro dei modelli. Per garantire la riproducibilit\`a, ogni immagine riceve un seed univoco calcolato come \texttt{seed + image\_index}.
+
+\section{Quantizzazione e Dithering}
+
+La quantizzazione riduce la profondit\`a di colore dell'immagine, mappando i 256 livelli originali per canale in un numero ridotto $L = 2^b$ dove $b$ \`e il numero di bit per canale. Sono stati implementati quattro metodi:
+
+\subsection{Quantizzazione semplice}
+
+Applica una riduzione diretta della profondit\`a:
+$$
+q(x) = \text{round}\!\left(\frac{x}{255} \cdot (L-1)\right) \cdot \frac{255}{L-1}
+$$
+
+\subsection{Random Dithering}
+
+Prima della quantizzazione, aggiunge rumore uniforme nell'intervallo $\left[-\frac{s}{2},\; \frac{s}{2}\right]$ dove $s = \frac{255}{L-1}$ \`e il passo di quantizzazione:
+$$
+\tilde{x} = q\!\left(x + \mathcal{U}\!\left(-\frac{s}{2},\; \frac{s}{2}\right) \cdot \text{noise\_strength}\right)
+$$
+
+Questo approccio spezza i pattern a bande tipici della quantizzazione semplice.
+
+\subsection{Ordered Dithering (Bayer)}
+
+Utilizza matrici di Bayer ($2\!\times\!2$, $4\!\times\!4$ o $8\!\times\!8$) come soglie spazialmente variabili. La matrice di Bayer viene normalizzata nell'intervallo $[-0.5, 0.5]$ e sommata all'immagine prima della quantizzazione, producendo pattern regolari e visivamente gradevoli.
+
+\subsection{Floyd-Steinberg Dithering}
+
+Algoritmo di \textit{error diffusion} che processa l'immagine pixel per pixel. L'errore di quantizzazione $e = x - q(x)$ viene distribuito ai pixel adiacenti non ancora processati secondo il kernel:
+$$
+\begin{bmatrix}
+\cdot & \cdot & \cdot \\
+\cdot & \ast & \frac{7}{16} \\
+\frac{3}{16} & \frac{5}{16} & \frac{1}{16}
+\end{bmatrix}
+$$
+
+dove $\ast$ indica il pixel corrente. Questo produce risultati percettivamente superiori, al costo di un'elaborazione sequenziale.
+
+\section{Salt-and-Pepper}
+
+Il rumore \textit{salt-and-pepper} sostituisce una frazione \texttt{amount} dei pixel dell'immagine con valori estremi: il parametro \texttt{salt\_vs\_pepper} controlla la proporzione tra pixel bianchi ($255$, \textit{salt}) e neri ($0$, \textit{pepper}).
+
+\section{Generazione automatica del dataset}
+
+Il modulo \texttt{generate\_degraded\_dataset.py} fornisce due funzioni principali:
+\begin{itemize}
+    \item \texttt{generate\_degraded\_dataset}: applica una degradazione a tutte le immagini PNG/JPG di una directory;
+    \item \texttt{generate\_degraded\_dataset\_auto}: genera automaticamente la struttura di directory organizzata (es.\ \texttt{data/degraded/gaussian/sigma\_100/DIV2K\_train\_HR/}), saltando la generazione se il dataset esiste gi\`a.
+\end{itemize}

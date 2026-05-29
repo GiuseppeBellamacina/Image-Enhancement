@@ -1,0 +1,81 @@
+\chapter{Valutazione}
+
+\section{Metriche}
+
+Le prestazioni dei modelli vengono valutate tramite quattro metriche quantitative, calcolate su immagini normalizzate in $[0, 1]$.
+
+\subsection{PSNR (Peak Signal-to-Noise Ratio)}
+
+$$
+\text{PSNR} = 20 \cdot \log_{10}\!\left(\frac{\text{MAX}}{\sqrt{\text{MSE}}}\right) \quad [\text{dB}]
+$$
+
+dove $\text{MAX} = 1.0$ \`e il valore massimo del segnale. Valori pi\`u alti indicano maggiore fedelt\`a al ground truth.
+
+\subsection{SSIM (Structural Similarity Index)}
+
+L'SSIM \`e calcolato con una finestra di dimensione $11\!\times\!11$ tramite \texttt{F.avg\_pool2d}:
+$$
+\text{SSIM}(x, y) = \frac{(2\mu_x\mu_y + C_1)(2\sigma_{xy} + C_2)}{(\mu_x^2 + \mu_y^2 + C_1)(\sigma_x^2 + \sigma_y^2 + C_2)}
+$$
+
+con $C_1 = (0.01)^2$ e $C_2 = (0.03)^2$. Valori pi\`u vicini a 1 indicano maggiore similarit\`a strutturale.
+
+\subsection{MAE e MSE}
+
+Rispettivamente la media del valore assoluto e del quadrato delle differenze pixel-wise, calcolate tramite \texttt{F.l1\_loss} e \texttt{F.mse\_loss}.
+
+\section{Inferenza su immagini full-resolution}
+
+Le immagini del dataset DIV2K hanno risoluzione $\sim\!2000\!\times\!2000$ pixel, troppo grande per essere processate in un singolo forward pass. L'inferenza avviene quindi tramite \textbf{sliding window} con blending pesato.
+
+\subsection{Sliding Window}
+
+L'immagine viene suddivisa in patch sovrapposte di dimensione \texttt{patch\_size} (tipicamente 256) con \texttt{overlap} (tipicamente 32--64) pixel di sovrapposizione:
+$$
+\text{stride} = \text{patch\_size} - \text{overlap}
+$$
+
+\subsection{Hann Window Blending}
+
+Per evitare artefatti ai bordi delle patch, ogni output viene pesato con una finestra 2D di Hann, ottenuta come prodotto esterno di due finestre 1D:
+$$
+w(i, j) = w_H(i) \cdot w_H(j), \qquad w_H(k) = 0.5 - 0.5 \cos\!\left(\frac{2\pi k}{N - 1}\right)
+$$
+
+L'output finale per ogni pixel \`e la media pesata dei contributi di tutte le patch che lo contengono:
+$$
+I_{\text{out}}(i, j) = \frac{\sum_p w_p \cdot O_p(i, j)}{\sum_p w_p}
+$$
+
+Questo produce transizioni graduali e naturali tra patch adiacenti.
+
+\section{Valutazione del dataset}
+
+La classe \texttt{ImageRestorationEvaluator} orchestra la valutazione sull'intero dataset:
+\begin{enumerate}
+    \item Per ogni coppia (degradata, pulita): inferenza con sliding window, calcolo delle metriche.
+    \item Aggregazione: media e deviazione standard su tutte le immagini.
+    \item Report: salvataggio in formato JSON con metriche per-immagine e aggregate, stampa delle immagini migliori e peggiori.
+\end{enumerate}
+
+% TODO: Sezione risultati da aggiungere quando saranno disponibili i risultati completi
+% \section{Risultati}
+% 
+% \begin{table}[H]
+% \centering
+% \begin{tabular}{lcc}
+% \toprule
+% \textbf{Modello} & \textbf{PSNR (dB)} & \textbf{SSIM} \\
+% \midrule
+% UNet (bilinear) & --- & --- \\
+% UNet Residual (bilinear) & --- & --- \\
+% Attention UNet (bilinear, all) & --- & --- \\
+% DnCNN-20 & --- & --- \\
+% Denoising AE & --- & --- \\
+% RIDNet & --- & --- \\
+% Pix2Pix & --- & --- \\
+% \bottomrule
+% \end{tabular}
+% \caption{Risultati quantitativi su DIV2K validation set (rumore gaussiano $\sigma = 100$).}
+% \end{table}

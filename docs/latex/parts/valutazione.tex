@@ -1,81 +1,55 @@
-\chapter{Valutazione}
+\section{Evaluation Methodology}
+\label{sec:evaluation}
 
-\section{Metriche}
+\subsection{Metrics}
 
-Le prestazioni dei modelli vengono valutate tramite quattro metriche quantitative, calcolate su immagini normalizzate in $[0, 1]$.
+Model performance is evaluated using four quantitative metrics, computed on images normalized to $[0, 1]$.
 
-\subsection{PSNR (Peak Signal-to-Noise Ratio)}
-
-$$
+\subsubsection{PSNR (Peak Signal-to-Noise Ratio)}
+\begin{equation}
 \text{PSNR} = 20 \cdot \log_{10}\!\left(\frac{\text{MAX}}{\sqrt{\text{MSE}}}\right) \quad [\text{dB}]
-$$
+\end{equation}
+where $\text{MAX} = 1.0$. Higher values indicate greater fidelity to ground truth.
 
-dove $\text{MAX} = 1.0$ \`e il valore massimo del segnale. Valori pi\`u alti indicano maggiore fedelt\`a al ground truth.
-
-\subsection{SSIM (Structural Similarity Index)}
-
-L'SSIM \`e calcolato con una finestra di dimensione $11\!\times\!11$ tramite \texttt{F.avg\_pool2d}:
-$$
+\subsubsection{SSIM (Structural Similarity Index)}
+SSIM~\cite{ssim} is computed with an $11\!\times\!11$ window via \texttt{F.avg\_pool2d}:
+\begin{equation}
 \text{SSIM}(x, y) = \frac{(2\mu_x\mu_y + C_1)(2\sigma_{xy} + C_2)}{(\mu_x^2 + \mu_y^2 + C_1)(\sigma_x^2 + \sigma_y^2 + C_2)}
-$$
+\end{equation}
+with $C_1 = (0.01)^2$ and $C_2 = (0.03)^2$. Values closer to 1 indicate higher structural similarity.
 
-con $C_1 = (0.01)^2$ e $C_2 = (0.03)^2$. Valori pi\`u vicini a 1 indicano maggiore similarit\`a strutturale.
+\subsubsection{MAE and MSE}
+Mean Absolute Error and Mean Squared Error, computed pixel-wise via \texttt{F.l1\_loss} and \texttt{F.mse\_loss} respectively.
 
-\subsection{MAE e MSE}
+\subsection{Full-Resolution Inference}
 
-Rispettivamente la media del valore assoluto e del quadrato delle differenze pixel-wise, calcolate tramite \texttt{F.l1\_loss} e \texttt{F.mse\_loss}.
+DIV2K images have resolution ${\sim}2000\!\times\!2000$ pixels, too large for a single forward pass. Inference is performed via \textbf{sliding window} with weighted blending.
 
-\section{Inferenza su immagini full-resolution}
-
-Le immagini del dataset DIV2K hanno risoluzione $\sim\!2000\!\times\!2000$ pixel, troppo grande per essere processate in un singolo forward pass. L'inferenza avviene quindi tramite \textbf{sliding window} con blending pesato.
-
-\subsection{Sliding Window}
-
-L'immagine viene suddivisa in patch sovrapposte di dimensione \texttt{patch\_size} (tipicamente 256) con \texttt{overlap} (tipicamente 32--64) pixel di sovrapposizione:
-$$
+\subsubsection{Sliding Window}
+The image is partitioned into overlapping patches of size \texttt{patch\_size} (typically 256) with \texttt{overlap} pixels (typically 32--64) of overlap:
+\begin{equation}
 \text{stride} = \text{patch\_size} - \text{overlap}
-$$
+\end{equation}
 
-\subsection{Hann Window Blending}
+\subsubsection{Hann Window Blending}
+To avoid boundary artifacts between patches, each output is weighted with a 2D Hann window, obtained as the outer product of two 1D windows:
+\begin{equation}
+w(i, j) = w_H(i) \cdot w_H(j), \quad w_H(k) = 0.5 - 0.5 \cos\!\left(\frac{2\pi k}{N - 1}\right)
+\end{equation}
 
-Per evitare artefatti ai bordi delle patch, ogni output viene pesato con una finestra 2D di Hann, ottenuta come prodotto esterno di due finestre 1D:
-$$
-w(i, j) = w_H(i) \cdot w_H(j), \qquad w_H(k) = 0.5 - 0.5 \cos\!\left(\frac{2\pi k}{N - 1}\right)
-$$
-
-L'output finale per ogni pixel \`e la media pesata dei contributi di tutte le patch che lo contengono:
-$$
+The final output for each pixel is the weighted average of contributions from all overlapping patches:
+\begin{equation}
 I_{\text{out}}(i, j) = \frac{\sum_p w_p \cdot O_p(i, j)}{\sum_p w_p}
-$$
+\end{equation}
+This produces smooth, natural transitions between adjacent patches.
 
-Questo produce transizioni graduali e naturali tra patch adiacenti.
+\subsection{Evaluation Protocol}
 
-\section{Valutazione del dataset}
-
-La classe \texttt{ImageRestorationEvaluator} orchestra la valutazione sull'intero dataset:
+The \texttt{ImageRestorationEvaluator} class orchestrates evaluation on the full dataset:
 \begin{enumerate}
-    \item Per ogni coppia (degradata, pulita): inferenza con sliding window, calcolo delle metriche.
-    \item Aggregazione: media e deviazione standard su tutte le immagini.
-    \item Report: salvataggio in formato JSON con metriche per-immagine e aggregate, stampa delle immagini migliori e peggiori.
+    \item For each (degraded, clean) pair: sliding-window inference followed by per-image metric computation.
+    \item Aggregation: mean and standard deviation across all images.
+    \item Reporting: JSON export with per-image and aggregate metrics, identification of best and worst cases.
 \end{enumerate}
 
-% TODO: Sezione risultati da aggiungere quando saranno disponibili i risultati completi
-% \section{Risultati}
-% 
-% \begin{table}[H]
-% \centering
-% \begin{tabular}{lcc}
-% \toprule
-% \textbf{Modello} & \textbf{PSNR (dB)} & \textbf{SSIM} \\
-% \midrule
-% UNet (bilinear) & --- & --- \\
-% UNet Residual (bilinear) & --- & --- \\
-% Attention UNet (bilinear, all) & --- & --- \\
-% DnCNN-20 & --- & --- \\
-% Denoising AE & --- & --- \\
-% RIDNet & --- & --- \\
-% Pix2Pix & --- & --- \\
-% \bottomrule
-% \end{tabular}
-% \caption{Risultati quantitativi su DIV2K validation set (rumore gaussiano $\sigma = 100$).}
-% \end{table}
+All models are evaluated on the same 10 validation images (indices 0801--0810 from DIV2K), enabling direct per-image comparisons across architectures.

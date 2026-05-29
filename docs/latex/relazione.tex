@@ -1,95 +1,63 @@
-\documentclass[12pt,a4paper,openany,oneside]{book}
+\documentclass[conference]{IEEEtran}
 
-\usepackage{hyperref}
-\usepackage[italian]{babel}
-
-\usepackage[utf8]{inputenc}
-\usepackage[T1]{fontenc}
-
+% ---- Packages ----
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
 \usepackage{graphicx}
-\usepackage[font=small,labelfont=bf,tableposition=top]{caption}
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage{subcaption}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{textcomp}
+\usepackage{balance}
 
-\usepackage[a4paper, top=2.2cm, bottom=2.5cm, left=2.2cm, right=2.2cm, headheight=14pt]{geometry}
-            
+% ---- Code listings ----
 \usepackage{listings}
 \usepackage{inconsolata}
-\usepackage{xcolor}
-\usepackage[framemethod=tikz]{mdframed}
 
-% Colori per il codice Python
 \definecolor{commentsgreen}{rgb}{0, 0.6, 0}
 \definecolor{codegray}{rgb}{0.5, 0.5, 0.5}
-\definecolor{keywordpurple}{rgb}{0.77, 0.525, 0.75}
-\definecolor{backcolour}{rgb}{0.12, 0.12, 0.12}
-\definecolor{functionyellow}{rgb}{0.86, 0.86, 0.667}
-\definecolor{basicblue}{rgb}{0.61, 0.86, 1}
-\definecolor{classgreen}{rgb}{0.294, 0.745, 0.6}
-\definecolor{numberyellow}{rgb}{0.686, 0.705, 0.435}
+\definecolor{keywordpurple}{rgb}{0.58, 0.0, 0.83}
+\definecolor{backcolour}{rgb}{0.95, 0.95, 0.95}
 \definecolor{stringbrown}{rgb}{0.8, 0.51, 0.298}
 
 \lstset{
     language=Python,
-    basicstyle=\footnotesize\ttfamily\color{basicblue},
+    basicstyle=\scriptsize\ttfamily,
     numbers=left,
     numberstyle=\tiny\ttfamily\color{codegray},
-    numbersep=8pt,
+    numbersep=6pt,
     tabsize=4,
-    escapeinside={(*@}{@*)},
-    extendedchars=true,
     breaklines=true,
     backgroundcolor=\color{backcolour},
-    commentstyle=\ttfamily\color{commentsgreen},
-    keywordstyle=\ttfamily\color{keywordpurple},
-    stringstyle=\ttfamily\color{stringbrown},
+    commentstyle=\color{commentsgreen},
+    keywordstyle=\color{keywordpurple},
+    stringstyle=\color{stringbrown},
     showspaces=false,
     showtabs=false,
-    xleftmargin=17pt,
-    framexleftmargin=17pt,
-    framexrightmargin=5pt,
-    framexbottommargin=4pt,
     showstringspaces=false,
     captionpos=b,
-    morekeywords=[2]{forward, train_epoch, validate, run_training, sliding_window_inference, restore_image, evaluate_image, evaluate_dataset, add_gaussian_noise, apply_quantization_dithering, extract_random_patch, get_dataloaders, setup_experiment, save_checkpoint, load_checkpoint, calculate_psnr, calculate_ssim, calculate_all_metrics, denormalize_image, normalize_image, create_blend_window},
-    keywordstyle=[2]\ttfamily\color{functionyellow},
-    morekeywords=[3]{UNet, UNetResidual, AttentionUNet, DnCNN, DenoisingAutoencoder, RIDNet, Pix2PixGenerator, PatchGANDiscriminator, DoubleConv, Down, Up, OutConv, AttentionGate, ChannelAttention, EAB, CombinedLoss, CombinedPerceptualLoss, VGGPerceptualLoss, ImageEnhancementDataset, ImageRestorationEvaluator, nn, Module, Conv2d, BatchNorm2d, ReLU, LeakyReLU, MaxPool2d, Upsample, ConvTranspose2d, Sequential, Sigmoid, Tanh, AdamW, Adam, Dataset, DataLoader, GradScaler, Tensor, np},
-    keywordstyle=[3]\ttfamily\color{classgreen},
-    literate={.}{{\textcolor{white}{.}}}1 
-             {=}{{\textcolor{white}{=}}}1
-             {,}{{\textcolor{white}{,}}}1
-             {:}{{\textcolor{white}{:}}}1
-             {|}{{\textcolor{white}{|}}}1
-             {+}{{\textcolor{white}{+}}}1
-             {-}{{\textcolor{white}{-}}}1
-             {>}{{\textcolor{white}{>}}}1
-             {<}{{\textcolor{white}{<}}}1
-             {*}{{\textcolor{white}{*}}}1
+    frame=single,
+    framesep=3pt
 }
 
-\addto\captionsitalian{
-    \renewcommand{\lstlistingname}{Codice}
-}
+% ---- Figures always at top ----
+\makeatletter
+\setlength{\@fptop}{0pt}
+\makeatother
 
-\setcounter{tocdepth}{2}
-\setcounter{secnumdepth}{2}
-
-\usepackage{amsmath}
-\usepackage{amssymb}
-\usepackage{float}
-\usepackage{framed}
-\usepackage{booktabs}
-\usepackage{array}
-\usepackage{subcaption}
-\usepackage{multirow}
-
-\emergencystretch=4em
+% ---- Custom commands ----
+\newcommand{\ie}{\textit{i.e.}}
+\newcommand{\eg}{\textit{e.g.}}
+\newcommand{\etal}{\textit{et al.}}
 
 \begin{document}
 
-\newgeometry{top=2.5cm, bottom=3cm, left=2.5cm, right=2.5cm}
 \input{parts/frontespizio}
-\restoregeometry
-
-\tableofcontents
 
 \input{parts/introduzione}
 
@@ -103,12 +71,53 @@
 
 \input{parts/valutazione}
 
-% TODO: aggiungere capitolo risultati quando disponibili
-% \input{parts/risultati}
+\input{parts/results}
 
-\begin{thebibliography}{9}
+\input{parts/conclusion}
+
+% ---- References ----
+\bibliographystyle{IEEEtran}
+\begin{thebibliography}{99}
+
 \bibitem{div2k}
-E.~Agustsson and R.~Timofte, ``NTIRE 2017 Challenge on Single Image Super-Resolution: Dataset and Study,'' in \textit{IEEE Conference on Computer Vision and Pattern Recognition Workshops (CVPRW)}, 2017.
+E.~Agustsson and R.~Timofte, ``NTIRE 2017 Challenge on Single Image Super-Resolution: Dataset and Study,'' in \textit{Proc. IEEE Conf. Comput. Vis. Pattern Recognit. Workshops (CVPRW)}, 2017, pp.~1122--1131.
+
+\bibitem{unet}
+O.~Ronneberger, P.~Fischer, and T.~Brox, ``U-Net: Convolutional Networks for Biomedical Image Segmentation,'' in \textit{Proc. Med. Image Comput. Comput.-Assisted Intervention (MICCAI)}, 2015, pp.~234--241.
+
+\bibitem{dncnn}
+K.~Zhang, W.~Zuo, Y.~Chen, D.~Meng, and L.~Zhang, ``Beyond a Gaussian Denoiser: Residual Learning of Deep CNN for Image Denoising,'' \textit{IEEE Trans. Image Process.}, vol.~26, no.~7, pp.~3142--3155, 2017.
+
+\bibitem{ridnet}
+S.~Anwar and N.~Barnes, ``Real Image Denoising with Feature Attention,'' in \textit{Proc. IEEE/CVF Int. Conf. Comput. Vis. (ICCV)}, 2019, pp.~3155--3164.
+
+\bibitem{pix2pix}
+P.~Isola, J.-Y.~Zhu, T.~Zhou, and A.~A.~Efros, ``Image-to-Image Translation with Conditional Adversarial Networks,'' in \textit{Proc. IEEE Conf. Comput. Vis. Pattern Recognit. (CVPR)}, 2017, pp.~1125--1134.
+
+\bibitem{attentiongate}
+O.~Oktay \etal, ``Attention U-Net: Learning Where to Look for the Pancreas,'' in \textit{Proc. Med. Image Learn. Less Labels Imperfect Data (MIDL)}, 2018.
+
+\bibitem{perceptualloss}
+J.~Johnson, A.~Alahi, and L.~Fei-Fei, ``Perceptual Losses for Real-Time Style Transfer and Super-Resolution,'' in \textit{Proc. Eur. Conf. Comput. Vis. (ECCV)}, 2016, pp.~694--711.
+
+\bibitem{ssim}
+Z.~Wang, A.~C.~Bovik, H.~R.~Sheikh, and E.~P.~Simoncelli, ``Image Quality Assessment: From Error Visibility to Structural Similarity,'' \textit{IEEE Trans. Image Process.}, vol.~13, no.~4, pp.~600--612, 2004.
+
+\bibitem{se}
+J.~Hu, L.~Shen, and G.~Sun, ``Squeeze-and-Excitation Networks,'' in \textit{Proc. IEEE Conf. Comput. Vis. Pattern Recognit. (CVPR)}, 2018, pp.~7132--7141.
+
+\bibitem{amp}
+P.~Micikevicius \etal, ``Mixed Precision Training,'' in \textit{Proc. Int. Conf. Learn. Represent. (ICLR)}, 2018.
+
+\bibitem{floyd}
+R.~W.~Floyd and L.~Steinberg, ``An Adaptive Algorithm for Spatial Greyscale,'' \textit{Proc. Soc. Inf. Disp.}, vol.~17, no.~2, pp.~75--77, 1976.
+
+\bibitem{nafnet}
+L.~Chen \etal, ``Simple Baselines for Image Restoration,'' in \textit{Proc. Eur. Conf. Comput. Vis. (ECCV)}, 2022, pp.~17--33.
+
+\bibitem{swin2sr}
+M.~V.~Conde, U.-J.~Choi, M.~Burber, and R.~Timofte, ``Swin2SR: SwinV2 Transformer for Compressed Image Super-Resolution and Restoration,'' in \textit{Proc. Eur. Conf. Comput. Vis. Workshops (ECCVW)}, 2022.
+
 \end{thebibliography}
 
 \end{document}

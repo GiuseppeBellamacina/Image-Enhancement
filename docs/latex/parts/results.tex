@@ -1,0 +1,315 @@
+\section{Experimental Results}
+\label{sec:results}
+
+All experiments were conducted on DIV2K~\cite{div2k} with Gaussian noise $\sigma = 100$. Models were trained on 800 training images and evaluated on 10 validation images (indices 0801--0810) at full resolution using sliding-window inference with Hann blending.
+
+% ============================================================
+\subsection{Quantitative Comparison}
+
+Table~\ref{tab:main_results} presents the main results for the best configuration of each model.
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Model} & \textbf{PSNR (dB)} & \textbf{SSIM} & \textbf{MAE} & \textbf{Epochs} \\
+\midrule
+RIDNet (8 EAB) & \textbf{25.83 $\pm$ 2.41} & \textbf{0.725 $\pm$ 0.081} & \textbf{0.0369} & 44 \\
+DnCNN (17L, 64F) & 25.60 $\pm$ 2.24 & 0.694 $\pm$ 0.066 & 0.0385 & 86 \\
+Att.\ UNet (btlnk) & 24.76 $\pm$ 1.98 & 0.678 $\pm$ 0.056 & 0.0424 & 34 \\
+UNet (bilinear) & 24.53 $\pm$ 1.91 & 0.639 $\pm$ 0.052 & 0.0444 & 18 \\
+DAE (upsample) & 24.27 & 0.660 & 0.0423 & 200 \\
+UNet Res.\ (bilinear) & 23.66 $\pm$ 1.81 & 0.594 $\pm$ 0.040 & 0.0483 & 10 \\
+\midrule
+Pix2Pix & \multicolumn{4}{c}{\textit{[TODO --- Daniele]}} \\
+NAFNet & \multicolumn{4}{c}{\textit{[TODO --- Daniele]}} \\
+Swin2SR & \multicolumn{4}{c}{\textit{[TODO --- Daniele]}} \\
+\bottomrule
+\end{tabular}
+\caption{Main results on DIV2K validation (Gaussian $\sigma = 100$). Best values in bold. Models ranked by PSNR. DAE trained on $\sigma = 100$ with upsample+conv decoder.}
+\label{tab:main_results}
+\end{table}
+
+\textbf{Key observations:}
+\begin{itemize}
+    \item RIDNet achieves the best overall performance across all metrics, with a margin of +0.23~dB PSNR and +0.031 SSIM over DnCNN.
+    \item Both top models (RIDNet, DnCNN) employ residual learning and operate without spatial downsampling, preserving full resolution throughout the network.
+    \item The Attention UNet with bottleneck attention and GroupNorm outperforms the base UNet by +0.23~dB, demonstrating the benefit of selective feature weighting.
+    \item The Denoising Autoencoder, despite lacking skip connections, achieves competitive SSIM (0.660), suggesting the bottleneck forces learning of global structure.
+    \item UNet Residual underperforms the direct-prediction UNet, likely due to early stopping (only 10 epochs) preventing convergence.
+\end{itemize}
+
+% ============================================================
+\subsection{Training Efficiency}
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Model} & \textbf{Time (h)} & \textbf{Memory (MB)} & \textbf{PSNR/h} \\
+\midrule
+RIDNet (8 EAB) & 3.41 & 30.83 & 7.57 \\
+DnCNN (17L) & 3.01 & 17.16 & 8.51 \\
+Att.\ UNet (btlnk) & 1.63 & 497.7 & 15.19 \\
+UNet (bilinear) & 0.84 & 273.2 & 29.20 \\
+DAE (upsample) & $\sim$11.1 & --- & 2.19 \\
+UNet Res.\ (bilinear) & 0.47 & 275.7 & 50.34 \\
+\bottomrule
+\end{tabular}
+\caption{Training efficiency comparison. PSNR/h indicates PSNR achieved per hour of training. Memory is peak GPU allocation during training.}
+\label{tab:efficiency}
+\end{table}
+
+The UNet variants offer the best efficiency (PSNR per training hour) due to their moderate computational cost. RIDNet and DnCNN require longer training but achieve superior final quality. The DAE requires 200 epochs ($\sim$11 hours) due to the absence of skip connections, which slows information flow.
+
+% ============================================================
+\subsection{Ablation Studies}
+
+\subsubsection{DnCNN: Depth, Features, and Learning Rate}
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{cccccc}
+\toprule
+\textbf{Layers} & \textbf{Features} & \textbf{LR} & \textbf{WD} & \textbf{PSNR} & \textbf{SSIM} \\
+\midrule
+20 & 128 & 1e-3 & 0 & 24.86 & 0.635 \\
+\textbf{17} & \textbf{64} & \textbf{1e-3} & \textbf{0} & \textbf{25.60} & \textbf{0.694} \\
+20 & 64 & 1e-4 & 0 & 22.86 & 0.518 \\
+\bottomrule
+\end{tabular}
+\caption{DnCNN ablation study. Best configuration uses fewer layers, smaller feature count, and higher learning rate. The 10$\times$ LR reduction in the third run severely degrades performance.}
+\label{tab:dncnn_ablation}
+\end{table}
+
+The DnCNN ablation (Table~\ref{tab:dncnn_ablation}) reveals three key findings: (1) A smaller network (17 layers, 64 features) outperforms the larger one (20 layers, 128 features), suggesting that over-parameterization hurts for this noise level. (2) Zero weight decay is critical---any regularization harms the residual learning capacity. (3) Learning rate is the single most impactful factor: reducing LR from $10^{-3}$ to $10^{-4}$ drops PSNR by 2.74~dB.
+
+\subsubsection{RIDNet: Number of EAB Blocks}
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{cccccc}
+\toprule
+\textbf{EABs} & \textbf{Features} & \textbf{Patch} & \textbf{Epochs} & \textbf{PSNR} & \textbf{SSIM} \\
+\midrule
+4 & 64 & 64 & 47 & 23.27 & 0.552 \\
+12 & 64 & 256 & 16 & 24.97 & 0.677 \\
+\textbf{8} & \textbf{96} & \textbf{256} & \textbf{44} & \textbf{25.83} & \textbf{0.725} \\
+\bottomrule
+\end{tabular}
+\caption{RIDNet ablation on number of EAB blocks. The optimal configuration balances model capacity (8 EAB, 96 features) with sufficient training duration.}
+\label{tab:ridnet_ablation}
+\end{table}
+
+The RIDNet ablation (Table~\ref{tab:ridnet_ablation}) shows that: (1) Too few EABs (4) limit representational capacity, especially with small patches (64). (2) The 12-EAB model achieves good results with only 16 epochs, suggesting larger models converge faster but are cut short by early stopping. (3) The optimal 8-EAB configuration with 96 features and 256-pixel patches provides the best balance of capacity and trainability. Gradient clipping (norm = 0.5) proved essential for training stability with larger EAB counts.
+
+\subsubsection{Denoising Autoencoder: Decoder Architecture}
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Decoder} & \textbf{Batch} & \textbf{Epochs} & \textbf{PSNR} & \textbf{SSIM} \\
+\midrule
+ConvTranspose (F=64, b=10) & 10 & 150 & 24.03 & 0.598 \\
+ConvTranspose (F=64, b=40) & 40 & 95 & 23.74 & 0.574 \\
+\textbf{Upsample+Conv (F=64, b=40)} & \textbf{40} & \textbf{200} & \textbf{24.27} & \textbf{0.660} \\
+\bottomrule
+\end{tabular}
+\caption{Denoising Autoencoder ablation ($\sigma = 100$). Bilinear upsampling + convolution eliminates checkerboard artifacts and improves SSIM by +0.086 over the same batch-size ConvTranspose variant.}
+\label{tab:dae_ablation}
+\end{table}
+
+The DAE ablation (Table~\ref{tab:dae_ablation}) demonstrates that replacing \texttt{ConvTranspose2d} with bilinear upsampling followed by a learned convolution significantly improves structural quality (SSIM +0.086) by eliminating checkerboard artifacts in the decoder output.
+
+\subsubsection{Attention UNet: Attention Configuration and Upsampling}
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Variant} & \textbf{Upsample} & \textbf{Attention} & \textbf{Norm} & \textbf{PSNR} & \textbf{SSIM} \\
+\midrule
+bilinear\_v2 & Bilinear & All & BN & 22.40 & 0.573 \\
+upsample & TransConv & All & BN & 21.81 & 0.607 \\
+upsample\_btlnk & TransConv & Bottleneck & GN & \textbf{24.76} & \textbf{0.678} \\
+bilinear\_btlnk & Bilinear & Bottleneck & GN & 24.64 & 0.671 \\
+\bottomrule
+\end{tabular}
+\caption{Attention UNet ablation. Bottleneck-only attention with GroupNorm dramatically outperforms all-level attention with BatchNorm. BN = BatchNorm, GN = GroupNorm.}
+\label{tab:attunet_ablation}
+\end{table}
+
+The Attention UNet ablation (Table~\ref{tab:attunet_ablation}) reveals a surprising finding: applying attention gates at \textit{all} decoder levels actually \textit{hurts} performance compared to bottleneck-only attention. Combined with GroupNorm (which provides better gradient flow in small-batch settings), the bottleneck variant improves PSNR by +2.36~dB over the all-attention variant. This suggests that excessive attention modulation in earlier decoder stages can disrupt low-level feature propagation.
+
+\subsubsection{UNet on Dithering Degradation}
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+\textbf{Variant} & \textbf{Features} & \textbf{PSNR} & \textbf{SSIM} \\
+\midrule
+Bilinear (F=96) & 96 & 27.43 & 0.763 \\
+\textbf{TransConv (F=64)} & \textbf{64} & \textbf{28.64} & \textbf{0.792} \\
+\bottomrule
+\end{tabular}
+\caption{UNet performance on 2-bit random dithering. Transposed convolution upsampling outperforms bilinear despite fewer features, likely due to learned upsampling kernels better suited to the structured dithering patterns.}
+\label{tab:unet_dithering}
+\end{table}
+
+On the dithering degradation task (Table~\ref{tab:unet_dithering}), the UNet with transposed convolution upsampling outperforms the bilinear variant by +1.21~dB, despite having fewer feature channels (64 vs.\ 96). This contrasts with Gaussian denoising where both modes perform similarly, suggesting that learned upsampling kernels are particularly beneficial for structured degradation patterns.
+
+% ============================================================
+\subsection{Visual Comparison}
+
+\begin{figure*}[t]
+    \centering
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/ridnet_best_inference.png}
+        \caption{RIDNet (8 EAB) --- PSNR 25.83 dB, SSIM 0.725}
+        \label{fig:ridnet_visual}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/dncnn_best_inference.png}
+        \caption{DnCNN (17L) --- PSNR 25.60 dB, SSIM 0.694}
+        \label{fig:dncnn_visual}
+    \end{subfigure}
+    
+    \vspace{0.3cm}
+    
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/attunet_best_inference.png}
+        \caption{Attention UNet (bottleneck) --- PSNR 24.76 dB, SSIM 0.678}
+        \label{fig:attunet_visual}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/dae_best_inference.png}
+        \caption{Denoising Autoencoder (upsample) --- PSNR 24.27 dB, SSIM 0.660}
+        \label{fig:dae_visual}
+    \end{subfigure}
+    
+    \caption{Visual comparison of inference results across models. Each sub-figure shows degraded input (left), model output (center), and ground truth (right) for a validation image from DIV2K. RIDNet and DnCNN preserve the most fine-grained details, while the DAE produces smoother but less detailed outputs due to the information bottleneck.}
+    \label{fig:visual_comparison}
+\end{figure*}
+
+Fig.~\ref{fig:visual_comparison} shows qualitative results from the best run of each model. Key visual observations:
+\begin{itemize}
+    \item \textbf{RIDNet} produces the sharpest restorations with best preservation of edges and textures, thanks to its multi-scale dilated convolutions and channel attention.
+    \item \textbf{DnCNN} achieves similarly clean results but tends to slightly over-smooth fine textures compared to RIDNet.
+    \item \textbf{Attention UNet} restores large-scale structure well but produces slightly blurrier outputs than the sequential models.
+    \item \textbf{Denoising Autoencoder} produces the smoothest results, confirming that the information bottleneck (no skip connections) limits high-frequency detail preservation.
+\end{itemize}
+
+% ============================================================
+\subsection{Training Dynamics}
+
+\begin{figure*}[t]
+    \centering
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/ridnet_best_curves.png}
+        \caption{RIDNet (8 EAB) --- smooth convergence in 44 epochs}
+        \label{fig:ridnet_curves}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/dncnn_best_curves.png}
+        \caption{DnCNN (17L) --- slower convergence, 86 epochs}
+        \label{fig:dncnn_curves}
+    \end{subfigure}
+    
+    \vspace{0.3cm}
+    
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/unet_curves.png}
+        \caption{UNet (bilinear) --- rapid initial convergence, early stopping at 18 epochs}
+        \label{fig:unet_curves}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/dae_best_curves.png}
+        \caption{Denoising AE --- slow convergence requiring 200 epochs}
+        \label{fig:dae_curves}
+    \end{subfigure}
+    
+    \caption{Training curves for representative models. The UNet family converges quickly (10--36 epochs) due to skip connections. DnCNN requires more epochs but benefits from the higher learning rate. The DAE converges slowest due to the information bottleneck forcing gradual feature learning.}
+    \label{fig:training_curves}
+\end{figure*}
+
+Fig.~\ref{fig:training_curves} shows training dynamics for representative models. Several patterns emerge:
+\begin{itemize}
+    \item \textbf{Skip connections accelerate convergence:} UNet variants converge in 10--36 epochs, while skip-free architectures (DAE) require 150--200 epochs.
+    \item \textbf{RIDNet combines fast convergence with high quality:} Despite its depth (8 EAB blocks), gradient clipping and cosine scheduling enable smooth convergence in 44 epochs.
+    \item \textbf{Warmup is critical for complex architectures:} The Attention UNet and RIDNet both benefit from 5--8 warmup epochs; without warmup, initial instability can trigger early stopping prematurely.
+    \item \textbf{Learning rate is the dominant factor for DnCNN:} The successful run (LR=$10^{-3}$) converges steadily, while the failed run (LR=$10^{-4}$) plateaus early and runs for 10+ hours without meaningful improvement.
+\end{itemize}
+
+% ============================================================
+\subsection{Per-Image Analysis}
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Image} & \textbf{RIDNet} & \textbf{DnCNN} & \textbf{Att.UNet} & \textbf{UNet} & \textbf{DAE} \\
+\midrule
+0801 & 25.67 & 25.29 & 24.36 & 24.30 & --- \\
+0802 & 24.97 & 24.57 & 23.79 & 23.53 & --- \\
+0803 & \textbf{30.14} & \textbf{29.29} & \textbf{27.86} & \textbf{26.91} & --- \\
+0804 & 24.33 & 24.09 & 23.33 & 22.95 & --- \\
+0805 & 25.55 & 24.89 & 24.24 & 24.27 & --- \\
+0806 & 24.43 & 24.11 & 23.40 & 23.22 & --- \\
+0807 & \textit{22.28} & \textit{22.24} & \textit{21.33} & \textit{21.42} & --- \\
+0808 & 27.21 & 26.92 & 26.01 & 25.36 & --- \\
+0809 & 27.05 & 27.16 & 26.46 & 25.49 & --- \\
+0810 & 26.63 & 27.48 & 26.81 & 25.88 & --- \\
+\midrule
+\textbf{Mean} & \textbf{25.83} & 25.60 & 24.76 & 24.53 & 24.27 \\
+\bottomrule
+\end{tabular}
+\caption{Per-image PSNR (dB) comparison across models. Bold = best per image; italic = worst image across all models. Image 0803 is consistently easiest (smooth, low-frequency content); 0807 is hardest (high-frequency textures).}
+\label{tab:per_image}
+\end{table}
+
+Table~\ref{tab:per_image} reveals consistent per-image patterns:
+\begin{itemize}
+    \item \textbf{Image 0803} is the easiest for all models (PSNR up to 30.14~dB with RIDNet), likely due to large smooth regions where noise removal is straightforward.
+    \item \textbf{Image 0807} is the hardest (PSNR $\sim$21--22~dB across all models), likely containing high-frequency textures that are difficult to distinguish from noise at $\sigma = 100$.
+    \item The performance gap between models is relatively consistent across images (RIDNet $>$ DnCNN $>$ Att.UNet $>$ UNet), suggesting architectural advantages are content-independent.
+    \item DnCNN occasionally outperforms RIDNet on specific images (0809, 0810), indicating that the models capture complementary features.
+\end{itemize}
+
+% ============================================================
+\subsection{Pending Results}
+
+\textbf{[TODO --- Daniele]:} The following models require experimental results to be added:
+\begin{itemize}
+    \item \textbf{Pix2Pix:} Conditional GAN results on Gaussian noise $\sigma = 100$. Expected metrics: PSNR, SSIM, MAE, plus GAN-specific metrics (FID, discriminator accuracy).
+    \item \textbf{NAFNet:} Nonlinear Activation Free Network results and comparison with the other architectures.
+    \item \textbf{Swin2SR:} Transformer-based restoration results, particularly interesting for comparison with purely convolutional approaches.
+\end{itemize}

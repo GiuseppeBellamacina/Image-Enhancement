@@ -1,34 +1,31 @@
-\chapter{Introduzione}
+\section{Introduction}
+\label{sec:introduction}
 
-\section{Obiettivo del progetto}
+Image denoising is a fundamental problem in low-level computer vision, aiming to recover a clean image from its noisy observation. With the advent of deep learning, CNN-based approaches have largely superseded traditional methods such as BM3D and NLM, achieving state-of-the-art results across a variety of noise models and intensity levels~\cite{dncnn}.
 
-Il presente progetto si propone di studiare e confrontare diversi approcci basati su reti neurali convoluzionali (CNN) per il problema dell'\textit{image enhancement}, ovvero il restauro di immagini corrotte da degradazioni controllate. L'obiettivo \`e duplice: da un lato implementare una pipeline completa e modulare che copra l'intero ciclo \emph{degradazione $\to$ addestramento $\to$ valutazione}; dall'altro analizzare empiricamente le differenze architetturali tra i modelli proposti, confrontandone le prestazioni in termini di metriche quantitative (PSNR, SSIM) e qualit\`a percettiva.
+This work presents a systematic comparison of multiple deep learning architectures for image restoration. Rather than proposing a single novel method, we focus on implementing a \emph{unified experimental framework} that enables fair, reproducible comparisons across fundamentally different architectural paradigms: encoder-decoder networks with skip connections (UNet family), purely sequential residual networks (DnCNN), attention-augmented architectures (RIDNet, Attention UNet), and generative adversarial networks (Pix2Pix).
 
-\section{Suddivisione del lavoro}
+All models are evaluated under identical conditions: the same dataset (DIV2K~\cite{div2k}), the same degradation model (additive Gaussian noise with $\sigma = 100$, a deliberately severe setting), and the same evaluation protocol (sliding-window inference with Hann blending on full-resolution images).
 
-Il progetto \`e stato sviluppato da quattro componenti, ciascuno responsabile di specifiche architetture:
+\subsection{Contributions}
 
+The main contributions of this work are:
 \begin{itemize}
-    \item \textbf{Giuseppe Bellamacina} --- UNet, UNet Residual, Attention UNet e infrastruttura comune (degradazioni, pipeline di training, valutazione, utilit\`a);
-    \item \textbf{Salvo Iurato} --- Denoising Autoencoder, DnCNN e RIDNet;
-    \item \textbf{Mattia Campanella} --- NAFNet;
-    \item \textbf{Daniele Barbagallo} --- Pix2Pix e GAN.
+    \item A modular, extensible framework covering the complete pipeline from degradation generation through training to evaluation;
+    \item A fair comparison of seven architectures under controlled conditions, with extensive ablation studies;
+    \item Analysis of critical design choices: residual learning vs.\ direct prediction, bilinear vs.\ transposed convolution upsampling, batch normalization vs.\ group normalization, and multi-component loss functions.
 \end{itemize}
 
-\section{Dataset}
+\subsection{Work Division}
 
-Il dataset utilizzato \`e \textbf{DIV2K}~\cite{div2k}, composto da 800 immagini di training e 100 immagini di validazione ad alta risoluzione ($\sim\!2$K). Le immagini vengono scaricate automaticamente dal server ETH di Zurigo tramite il modulo \texttt{download\_dataset.py} e salvate nella directory \texttt{data/raw/}.
+The project was developed collaboratively:
+\begin{itemize}
+    \item \textbf{Giuseppe Bellamacina} --- UNet, UNet Residual, Attention UNet, and the shared infrastructure (degradations, training pipeline, evaluation, utilities);
+    \item \textbf{Salvo Iurato} --- DnCNN and RIDNet;
+    \item \textbf{Mattia Campanella} --- Denoising Autoencoder;
+    \item \textbf{Daniele Barbagallo} --- Pix2Pix, GAN, NAFNet, and Swin2SR.
+\end{itemize}
 
-Dalle immagini originali vengono generate le versioni degradate in modo controllato e riproducibile, salvate con una struttura organizzata sotto \texttt{data/degraded/}. Il sistema supporta la generazione automatica con naming conventions coerenti (ad esempio \texttt{data/degraded/gaussian/sigma\_100/DIV2K\_train\_HR/}).
+\subsection{Paper Organization}
 
-\section{Pipeline generale}
-
-Il flusso di lavoro del progetto si articola in tre fasi principali:
-
-\begin{enumerate}
-    \item \textbf{Degradazione:} Le immagini pulite vengono corrotte con degradazioni parametrizzabili (rumore gaussiano, dithering, salt-and-pepper). Ogni tipo di corruzione \`e implementato in un modulo dedicato e pu\`o essere applicato in batch all'intero dataset.
-    
-    \item \textbf{Addestramento:} I modelli CNN vengono addestrati su coppie (immagine degradata, immagine pulita) estratte come patch casuali. Il sistema di training \`e unificato e supporta mixed precision (AMP), warmup del learning rate, scheduler coseno, early stopping e checkpointing automatico.
-    
-    \item \textbf{Valutazione:} Le immagini restaurate vengono confrontate con i ground truth tramite metriche quantitative. L'inferenza su immagini full-resolution avviene tramite \textit{sliding window} con blending pesato per evitare artefatti ai bordi delle patch.
-\end{enumerate}
+Section~\ref{sec:degradations} describes the degradation models. Section~\ref{sec:infrastructure} details the shared training infrastructure. Section~\ref{sec:models} presents the model architectures. Section~\ref{sec:training} discusses training procedures and hyperparameters. Section~\ref{sec:evaluation} defines the evaluation methodology. Section~\ref{sec:results} reports experimental results with ablation studies and visual comparisons. Section~\ref{sec:conclusion} concludes the paper.

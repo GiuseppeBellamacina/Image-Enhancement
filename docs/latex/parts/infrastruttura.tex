@@ -1,108 +1,74 @@
-\chapter{Infrastruttura comune}
+\section{Training Infrastructure}
+\label{sec:infrastructure}
 
-L'infrastruttura di supporto \`e condivisa da tutti i modelli e comprende il dataset PyTorch, il pipeline di training, il sistema di esperimenti, le loss function e le utilit\`a di valutazione e inferenza.
+The training infrastructure is shared across all models and comprises the PyTorch dataset, the training pipeline, the experiment management system, loss functions, and evaluation utilities.
 
-\section{Dataset e Data Loading}
+\subsection{Dataset and Data Loading}
 
-La classe \texttt{ImageEnhancementDataset} estende \texttt{torch.utils.data.Dataset} e gestisce il caricamento delle coppie (immagine degradata, immagine pulita) con estrazione di patch casuali.
+The \texttt{ImageEnhancementDataset} class extends \texttt{torch.utils.data.Dataset} and manages loading of (degraded, clean) image pairs with random patch extraction.
 
-\subsection{Estrazione delle patch}
+\subsubsection{Patch Extraction}
+Each image is divided into square patches of configurable size (typically $128\!\times\!128$ or $256\!\times\!256$). For each image, \texttt{patches\_per\_image} patches are extracted at random positions, so the effective dataset length is:
+\begin{equation}
+|\mathcal{D}| = N_{\text{images}} \times \text{patches\_per\_image}
+\end{equation}
+Images are cached via \texttt{@lru\_cache(maxsize=64)} to minimize disk I/O.
 
-Ogni immagine viene suddivisa in patch quadrate di dimensione configurabile (tipicamente $128\!\times\!128$). Per ogni immagine vengono estratte \texttt{patches\_per\_image} patch in posizioni casuali, cos\`i che la lunghezza effettiva del dataset \`e:
-$$
-|\mathcal{D}| = N_{\text{immagini}} \times \text{patches\_per\_image}
-$$
-
-Le immagini vengono mantenute in cache tramite \texttt{@lru\_cache(maxsize=64)} per ridurre gli accessi a disco.
-
-\subsection{Data augmentation}
-
-Durante il training vengono applicate trasformazioni geometriche tramite la libreria Albumentations:
+\subsubsection{Data Augmentation}
+During training, geometric transformations are applied jointly to the degraded/clean pair via Albumentations:
 \begin{itemize}
-    \item \texttt{HorizontalFlip} (probabilit\`a 0.5)
-    \item \texttt{VerticalFlip} (probabilit\`a 0.5)
-    \item \texttt{RandomRotate90} (probabilit\`a 0.5)
+    \item HorizontalFlip ($p = 0.5$)
+    \item VerticalFlip ($p = 0.5$)
+    \item RandomRotate90 ($p = 0.5$)
 \end{itemize}
+Normalization maps pixels from $[0, 255]$ to $[-1, 1]$ via $x' = (x/255 - 0.5)/0.5$. During validation, only normalization is applied.
 
-Le augmentation vengono applicate congiuntamente alla coppia degradata/pulita tramite il meccanismo \texttt{additional\_targets} di Albumentations. La normalizzazione mappa i pixel da $[0, 255]$ a $[-1, 1]$ tramite $x' = (x/255 - 0.5) / 0.5$. In validazione si applica solo la normalizzazione.
+\subsubsection{DataLoader Configuration}
+DataLoaders are configured with \texttt{pin\_memory=True} for asynchronous GPU transfers, \texttt{persistent\_workers=True} to avoid worker respawning, and \texttt{drop\_last=True} during training for constant batch sizes. A worker initialization function disables OpenCV threading and sets per-worker NumPy seeds.
 
-\subsection{DataLoader}
+\subsection{Loss Functions}
 
-La funzione \texttt{get\_dataloaders} crea i dataloader di training e validazione con le seguenti impostazioni:
-\begin{itemize}
-    \item \texttt{pin\_memory=True} per trasferimenti GPU asincroni
-    \item \texttt{persistent\_workers=True} per evitare il respawn dei worker
-    \item \texttt{drop\_last=True} nel training per batch di dimensione costante
-    \item Worker init function che disabilita il threading OpenCV e imposta seed NumPy per-worker
-\end{itemize}
+Three loss functions of increasing complexity are available.
 
-\section{Funzioni di Loss}
-
-Sono state implementate diverse loss function, dalle pi\`u semplici a combinazioni pi\`u elaborate.
-
-\subsection{Combined Loss (L1 + SSIM)}
-
-La loss combinata \`e definita come:
-$$
+\subsubsection{Combined Loss (L1 + SSIM)}
+\begin{equation}
 \mathcal{L}_{\text{combined}} = \alpha \cdot \mathcal{L}_{\text{L1}} + \beta \cdot (1 - \text{SSIM})
-$$
+\label{eq:combined_loss}
+\end{equation}
+with default weights $\alpha = 0.84$, $\beta = 0.16$. Images are converted from $[-1,1]$ to $[0,1]$ for SSIM computation. For numerical stability under mixed precision (FP16), epsilon clamping and small Gaussian noise injection are applied to the SSIM computation.
 
-dove $\alpha = 0.84$ e $\beta = 0.16$ sono i pesi di default. Per il calcolo dell'SSIM le immagini vengono convertite da $[-1,1]$ a $[0,1]$. Per stabilizzare il calcolo in mixed precision (FP16), vengono applicati un epsilon di clamping e una piccola iniezione di rumore gaussiano.
-
-\subsection{Perceptual Loss (VGG)}
-
-La \texttt{VGGPerceptualLoss} utilizza una rete VGG-16 pre-addestrata su ImageNet come estrattore di feature. Le feature vengono estratte a livelli configurabili (\texttt{relu2\_2}, \texttt{relu3\_3} di default) e la loss \`e calcolata come L1 pesata tra le feature map:
-$$
+\subsubsection{VGG Perceptual Loss}
+The VGG Perceptual Loss~\cite{perceptualloss} uses a pretrained VGG-16 as a feature extractor. Features are extracted at configurable layers (\texttt{relu2\_2}, \texttt{relu3\_3} by default) and the loss is computed as weighted L1 distance in feature space:
+\begin{equation}
 \mathcal{L}_{\text{perceptual}} = \sum_{l \in \text{layers}} w_l \cdot \|\phi_l(\hat{x}) - \phi_l(x)\|_1
-$$
+\end{equation}
+where $\phi_l$ denotes VGG-16 features at layer $l$. VGG parameters are frozen and inputs are normalized with ImageNet statistics.
 
-dove $\phi_l$ indica le feature al livello $l$ della VGG-16. I parametri della VGG sono congelati e gli input vengono normalizzati con le statistiche di ImageNet.
-
-\subsection{Combined Perceptual Loss}
-
-La \texttt{CombinedPerceptualLoss} unifica le tre componenti:
-$$
+\subsubsection{Combined Perceptual Loss}
+Unifies all three components:
+\begin{equation}
 \mathcal{L} = \alpha \cdot \mathcal{L}_{\text{L1}} + \beta \cdot (1 - \text{SSIM}) + \gamma \cdot \mathcal{L}_{\text{perceptual}}
-$$
+\label{eq:perceptual_loss}
+\end{equation}
+Typical weights are $\alpha = 0.6$, $\beta = 0.25$, $\gamma = 0.15$. When $\gamma = 0$, the VGG network is not loaded into memory.
 
-Con i pesi tipici $\alpha = 0.6$, $\beta = 0.25$, $\gamma = 0.15$. Quando $\gamma = 0$ la rete VGG non viene caricata in memoria.
+\subsection{Experiment Management}
 
-\section{Sistema di Esperimenti}
-
-Il modulo \texttt{experiment.py} gestisce la creazione, il salvataggio e la ripresa degli esperimenti.
-
-\subsection{Struttura delle directory}
-
-Ogni esperimento viene salvato in una directory con timestamp:
+Each experiment is saved in a timestamped directory:
+\begin{small}
 \begin{verbatim}
-experiments/{modello}/{degradazione}/{timestamp}_{nome}/
-    checkpoints/    # Pesi del modello
-    samples/        # Campioni visivi
-    logs/           # Log TensorBoard
-    config.json     # Configurazione completa
-    history.json    # Metriche per epoch
+experiments/{model}/{degradation}/{timestamp}_{name}/
+    checkpoints/   config.json   history.json
+    samples/       logs/
 \end{verbatim}
+\end{small}
 
-\subsection{Ripresa e fork}
+The system supports automatic \textit{forking}: if the configuration changes relative to the previous experiment, a new directory is created with its own metadata while copying the best checkpoint and training history from the parent. This enables systematic hyperparameter exploration with full traceability.
 
-Il sistema supporta la ripresa automatica dell'ultimo esperimento. Se la configurazione \`e cambiata rispetto all'esperimento precedente, viene eseguito un \textit{fork}: si crea un nuovo esperimento con i propri metadati, copiando il miglior checkpoint e la history dal padre. Questo consente di esplorare variazioni di iperparametri mantenendo la tracciabilit\`a.
+\subsection{Checkpointing}
 
-La funzione \texttt{compare\_configs} confronta le configurazioni ignorando campi non significativi come \texttt{resume\_from\_checkpoint}, \texttt{num\_epochs} e \texttt{device}.
+Checkpoints save the complete training state: model weights, optimizer and scheduler states, current epoch, and metrics. At loading time, integrity validation checks all floating-point tensors for NaN/Inf values. In case of OOM errors during training, an emergency checkpoint is automatically saved before cleanup.
 
-\section{Checkpointing}
+\subsection{Telegram Notifications}
 
-I checkpoint salvano lo stato completo dell'addestramento:
-\begin{itemize}
-    \item Pesi del modello (\texttt{model\_state\_dict})
-    \item Stato dell'ottimizzatore e dello scheduler
-    \item Epoch corrente e metriche
-    \item Metadati opzionali (configurazione, ecc.)
-\end{itemize}
-
-Al caricamento, viene eseguita una validazione di integrit\`a: tutti i tensori floating-point vengono controllati per la presenza di valori \texttt{NaN} o \texttt{Inf}, con errore esplicito che indica le chiavi corrotte.
-
-In caso di errore OOM durante il training, viene salvato un checkpoint di emergenza. Se il file \texttt{best\_model.pth} manca, il sistema lo ricrea a partire dal checkpoint di emergenza o periodico pi\`u recente.
-
-\section{Notifiche Telegram}
-
-Il modulo \texttt{telegram\_notifier.py} invia notifiche sullo stato del training tramite l'API Telegram Bot. Vengono notificati: inizio training, aggiornamenti periodici sulle epoche, completamento, early stopping e errori OOM. Le credenziali vengono lette da un file \texttt{.env} (\texttt{TELEGRAM\_BOT\_TOKEN} e \texttt{TELEGRAM\_CHAT\_ID}).
+A notification module sends training status updates (start, periodic progress, completion, early stopping, OOM errors) via Telegram Bot API, enabling remote monitoring of long-running experiments.

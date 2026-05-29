@@ -1,273 +1,223 @@
-\chapter{Architetture dei Modelli}
+\section{Model Architectures}
+\label{sec:models}
 
-In questo capitolo vengono descritte le architetture dei modelli implementati. Tutti i modelli operano su immagini RGB normalizzate in $[-1, 1]$ e producono output nello stesso intervallo. Si distinguono due paradigmi: la \textbf{predizione diretta} dell'immagine pulita e il \textbf{residual learning}, dove il modello predice il rumore da sottrarre all'input.
+This section describes the architectures implemented. All models operate on RGB images normalized to $[-1, 1]$ and produce output in the same range. Two paradigms are distinguished: \textbf{direct prediction} of the clean image and \textbf{residual learning}, where the model predicts the noise to be subtracted from the input.
 
 % ============================================================
-\section{UNet}
-\label{sec:unet}
+\subsection{UNet}
+\label{subsec:unet}
 
-\textit{Sviluppato da: Giuseppe Bellamacina}
+\textit{Developed by: Giuseppe Bellamacina}
 
 \medskip
 
-La UNet \`e un'architettura encoder-decoder con skip connection, originariamente proposta per la segmentazione biomedica e adattata qui al restauro di immagini. Il modello apprende una mappatura diretta dall'immagine degradata a quella pulita.
+The UNet~\cite{unet} is an encoder-decoder architecture with skip connections, originally proposed for biomedical segmentation and adapted here to image restoration. The model learns a direct mapping from the degraded image to the clean one.
 
-\subsection{Architettura}
+\subsubsection{Architecture}
+The encoder consists of 4 downsampling stages, each comprising a \texttt{DoubleConv} block (two $3\!\times\!3$ convolutions with BatchNorm and ReLU) followed by $2\!\times\!2$ MaxPool:
+\begin{equation}
+\texttt{inc}(3 \!\to\! 64) \!\to\! \texttt{d}_1(64 \!\to\! 128) \!\to\! \texttt{d}_2(128 \!\to\! 256) \!\to\! \texttt{d}_3(256 \!\to\! 512) \!\to\! \texttt{d}_4(512 \!\to\! 1024)
+\end{equation}
 
-L'encoder \`e composto da 4 stadi di downsampling, ciascuno formato da un blocco \texttt{DoubleConv} (due convoluzioni $3\!\times\!3$ con BatchNorm e ReLU) seguito da MaxPool $2\!\times\!2$:
-$$
-\texttt{inc}(3 \to 64) \to \texttt{down}_1(64 \to 128) \to \texttt{down}_2(128 \to 256) \to \texttt{down}_3(256 \to 512) \to \texttt{down}_4(512 \to 1024)
-$$
-
-Il decoder ricostruisce la risoluzione spaziale tramite upsampling. Sono supportate due modalit\`a:
+The decoder reconstructs spatial resolution via upsampling. Two modes are supported:
 \begin{itemize}
-    \item \textbf{Bilinear:} \texttt{nn.Upsample(scale\_factor=2, mode='bilinear')} seguito da \texttt{DoubleConv} con canali dimezzati.
-    \item \textbf{Transposed Convolution:} \texttt{ConvTranspose2d(kernel\_size=2, stride=2)}.
+    \item \textbf{Bilinear:} \texttt{nn.Upsample(scale\_factor=2, mode=`bilinear')} followed by \texttt{DoubleConv}.
+    \item \textbf{Transposed Convolution:} \texttt{ConvTranspose2d(kernel=2, stride=2)}.
 \end{itemize}
 
-Ad ogni livello del decoder, le feature dell'encoder vengono concatenate tramite skip connection dopo un eventuale padding per gestire discrepanze dimensionali. L'output finale \`e una convoluzione $1\!\times\!1$ che mappa da 64 a 3 canali, senza funzione di attivazione.
-
-\subsection{Configurazione}
-
-\begin{table}[H]
-\centering
-\begin{tabular}{ll}
-\toprule
-\textbf{Parametro} & \textbf{Valore} \\
-\midrule
-Canali di ingresso/uscita & 3 (RGB) \\
-Feature iniziali & 64 \\
-Modalit\`a upsampling & Bilinear / Transposed Conv \\
-Paradigma & Predizione diretta \\
-\bottomrule
-\end{tabular}
-\caption{Parametri architetturali della UNet.}
-\end{table}
+At each decoder level, encoder features are concatenated via skip connections. The final output is a $1\!\times\!1$ convolution mapping from 64 to 3 channels, without activation.
 
 % ============================================================
-\section{UNet Residual}
-\label{sec:unet-residual}
+\subsection{UNet Residual}
+\label{subsec:unet-residual}
 
-\textit{Sviluppato da: Giuseppe Bellamacina}
+\textit{Developed by: Giuseppe Bellamacina}
 
 \medskip
 
-La UNet Residual condivide la stessa architettura encoder-decoder della UNet base, con una differenza fondamentale nel paradigma di apprendimento: il modello predice il \textbf{rumore} presente nell'immagine anzich\'e l'immagine pulita. L'output denoised si ottiene per sottrazione:
-$$
+The UNet Residual shares the same encoder-decoder architecture as the base UNet, with a fundamental difference in the learning paradigm: the model predicts the \textbf{noise} present in the image rather than the clean image. The denoised output is obtained by subtraction:
+\begin{equation}
 \hat{x}_{\text{clean}} = x_{\text{noisy}} - f_\theta(x_{\text{noisy}})
-$$
+\end{equation}
+where $f_\theta$ is the network predicting the noise component.
 
-dove $f_\theta$ \`e la rete che predice la componente di rumore.
-
-\subsection{Anti-checkerboard}
-
-Nella variante con transposed convolution, \`e stato applicato un fix per gli artefatti a scacchiera (\textit{checkerboard artifacts}) tipici della deconvoluzione: il kernel della \texttt{ConvTranspose2d} \`e stato portato da $2\!\times\!2$ a $4\!\times\!4$ con \texttt{padding=1}, garantendo una copertura pi\`u uniforme dei pixel di output.
+\subsubsection{Anti-Checkerboard}
+In the transposed convolution variant, the kernel size was increased from $2\!\times\!2$ to $4\!\times\!4$ with \texttt{padding=1}, ensuring more uniform coverage of output pixels and eliminating the checkerboard artifacts typical of standard deconvolution.
 
 % ============================================================
-\section{Attention UNet}
-\label{sec:attention-unet}
+\subsection{Attention UNet}
+\label{subsec:attention-unet}
 
-\textit{Sviluppato da: Giuseppe Bellamacina}
+\textit{Developed by: Giuseppe Bellamacina}
 
 \medskip
 
-L'Attention UNet estende la UNet con meccanismi di \textit{attention gate} (AG) nelle skip connection, permettendo al decoder di concentrarsi sulle regioni pi\`u rilevanti delle feature dell'encoder.
+The Attention UNet extends the UNet with \textit{attention gates}~\cite{attentiongate} in the skip connections, allowing the decoder to focus on the most relevant regions of encoder features.
 
-\subsection{Attention Gate}
-
-L'attention gate calcola una mappa di attenzione spaziale a partire dal segnale di gating $g$ (proveniente dal livello decoder inferiore) e dal segnale skip $x$ (proveniente dall'encoder):
-$$
+\subsubsection{Attention Gate}
+The attention gate computes a spatial attention map from the gating signal $g$ (from the lower decoder level) and the skip signal $x$ (from the encoder):
+\begin{equation}
 \alpha = \sigma\!\left(\psi\!\left(\text{ReLU}(W_g \cdot g + W_x \cdot x)\right)\right)
-$$
+\end{equation}
+where $W_g$ and $W_x$ are $1\!\times\!1$ convolutions with normalization, $\psi$ is a $1\!\times\!1$ convolution reducing to a single channel, and $\sigma$ is the sigmoid function. Skip features are modulated element-wise: $\hat{x} = \alpha \odot x$.
 
-dove $W_g$ e $W_x$ sono convoluzioni $1\!\times\!1$ con normalizzazione, $\psi$ \`e una convoluzione $1\!\times\!1$ che riduce a un singolo canale, e $\sigma$ \`e la funzione sigmoide. Le feature skip vengono modulate element-wise:
-$$
-\hat{x} = \alpha \odot x
-$$
-
-\subsection{Livelli di attenzione}
-
-Il modello supporta due configurazioni:
+\subsubsection{Attention Levels}
+Two configurations are supported:
 \begin{itemize}
-    \item \texttt{("bottleneck",)}: attention gate applicato solo al primo livello del decoder (collegamento con il bottleneck).
-    \item \texttt{("all",)}: attention gate applicato a tutti i livelli del decoder.
+    \item \texttt{``bottleneck''}: attention gate applied only to the first decoder level.
+    \item \texttt{``all''}: attention gates applied at all decoder levels.
 \end{itemize}
 
-\subsection{Normalizzazione}
+\subsubsection{Normalization}
+Both \texttt{BatchNorm2d} and \texttt{GroupNorm} (with $\min(8, C)$ groups) are supported, selectable via the \texttt{norm} parameter.
 
-Il modello supporta sia \texttt{BatchNorm2d} che \texttt{GroupNorm} (con $\min(8, C)$ gruppi), selezionabile tramite il parametro \texttt{norm}.
-
-\subsection{Adaptive Blending}
-
-L'Attention UNet supporta un meccanismo opzionale di blending adattivo basato sull'intensit\`a del rumore stimata. Se viene fornito un valore di \texttt{noise\_sigma} durante l'inferenza:
-$$
-\alpha = \min\!\left(\frac{\sigma_{\text{noise}}}{\sigma_{\text{trained}}},\; 1.0\right), \qquad
+\subsubsection{Adaptive Blending}
+An optional blending mechanism moderates model intervention based on estimated noise intensity. If a \texttt{noise\_sigma} value is provided at inference:
+\begin{equation}
+\alpha = \min\!\left(\frac{\sigma_{\text{noise}}}{\sigma_{\text{trained}}},\; 1.0\right), \quad
 \text{output} = \alpha \cdot x_{\text{input}} + (1 - \alpha) \cdot x_{\text{denoised}}
-$$
-
-Questo permette di moderare l'intervento del modello quando il rumore \`e inferiore a quello su cui \`e stato addestrato.
+\end{equation}
 
 % ============================================================
-\section{DnCNN}
-\label{sec:dncnn}
+\subsection{DnCNN}
+\label{subsec:dncnn}
 
-\textit{Sviluppato da: Salvo Iurato}
+\textit{Developed by: Salvo Iurato}
 
 \medskip
 
-Il DnCNN (\textit{Denoising Convolutional Neural Network}) \`e un'architettura puramente sequenziale che sfrutta il residual learning. A differenza delle architetture encoder-decoder, non utilizza alcuna forma di downsampling o skip connection.
+DnCNN~\cite{dncnn} (\textit{Denoising Convolutional Neural Network}) is a purely sequential architecture exploiting residual learning. Unlike encoder-decoder architectures, it uses no downsampling or skip connections.
 
-\subsection{Architettura}
-
-La rete \`e composta da 20 layer convoluzionali:
+\subsubsection{Architecture}
+The network consists of $D$ convolutional layers (17 in the best configuration):
 \begin{enumerate}
-    \item \textbf{Primo layer:} \texttt{Conv2d(3$\to$64, 3$\times$3)} con bias + ReLU (senza BatchNorm).
-    \item \textbf{Layer 2--19:} \texttt{Conv2d(64$\to$64, 3$\times$3)} senza bias + BatchNorm + ReLU.
-    \item \textbf{Ultimo layer:} \texttt{Conv2d(64$\to$3, 3$\times$3)} con bias (senza BatchNorm n\'e attivazione).
+    \item \textbf{First layer:} \texttt{Conv2d($3 \!\to\! F$, $3\!\times\!3$)} + ReLU (no BatchNorm).
+    \item \textbf{Layers 2 to $D\!-\!1$:} \texttt{Conv2d($F \!\to\! F$, $3\!\times\!3$)} + BatchNorm + ReLU.
+    \item \textbf{Last layer:} \texttt{Conv2d($F \!\to\! 3$, $3\!\times\!3$)} (no BatchNorm or activation).
 \end{enumerate}
 
-Il rumore predetto viene sottratto dall'input:
-$$
-\hat{x}_{\text{clean}} = x_{\text{noisy}} - f_\theta(x_{\text{noisy}})
-$$
-
-In fase di inferenza, l'output viene clampato nell'intervallo $[-1, 1]$. I pesi sono inizializzati con Kaiming normal per le convoluzioni e costanti (1 / 0) per la BatchNorm.
+The predicted noise is subtracted from the input: $\hat{x}_{\text{clean}} = x_{\text{noisy}} - f_\theta(x_{\text{noisy}})$. Output is clamped to $[-1, 1]$ at inference. Weights are initialized with Kaiming normal for convolutions and constants (1/0) for BatchNorm.
 
 % ============================================================
-\section{Denoising Autoencoder}
-\label{sec:denoising-autoencoder}
+\subsection{Denoising Autoencoder}
+\label{subsec:denoising-autoencoder}
 
-\textit{Sviluppato da: Salvo Iurato}
+\textit{Developed by: Mattia Campanella}
 
 \medskip
 
-Il Denoising Autoencoder \`e un'architettura encoder-decoder \textbf{senza skip connection}, progettata come baseline per il confronto con le architetture pi\`u avanzate.
+The Denoising Autoencoder is an encoder-decoder architecture \textbf{without skip connections}, designed as a baseline for comparison with more advanced architectures.
 
-\subsection{Architettura}
+\subsubsection{Architecture}
+The \textbf{encoder} performs 4 downsampling stages via strided convolutions ($3\!\times\!3$, \texttt{stride=2}), each followed by BatchNorm and LeakyReLU(0.2):
+\begin{equation}
+3 \xrightarrow{\text{s2}} 128 \xrightarrow{\text{s2}} 64 \xrightarrow{\text{s2}} 32 \xrightarrow{\text{s2}} 16 \text{ (spatial)} 
+\end{equation}
 
-L'\textbf{encoder} esegue 4 stadi di downsampling tramite convoluzioni strided ($3\!\times\!3$, \texttt{stride=2}), ciascuno seguito da BatchNorm e LeakyReLU(0.2):
-$$
-3 \xrightarrow{128\to 64} 32 \xrightarrow{64\to 32} 64 \xrightarrow{32\to 16} 128 \xrightarrow{16\to 8} 256
-$$
+The \textbf{decoder} reconstructs resolution via \texttt{Upsample(bilinear)} + \texttt{Conv2d($3\!\times\!3$)} at each stage, with BatchNorm and LeakyReLU, followed by a final Tanh activation producing output in $[-1, 1]$.
 
-Il \textbf{decoder} ricostruisce la risoluzione tramite \texttt{Upsample(bilinear)} + \texttt{Conv2d(3$\times$3)} per ogni stadio, con BatchNorm e LeakyReLU, fino a un layer finale con attivazione Tanh che produce l'output in $[-1, 1]$.
-
-L'assenza di skip connection costringe il bottleneck a contenere tutta l'informazione necessaria per la ricostruzione, rendendo il modello pi\`u ``lossy'' ma anche pi\`u semplice.
+The absence of skip connections forces the bottleneck to encode all information necessary for reconstruction, making the model more ``lossy'' but simpler, and serving as a lower bound for architectures with skip connections.
 
 % ============================================================
-\section{RIDNet}
-\label{sec:ridnet}
+\subsection{RIDNet}
+\label{subsec:ridnet}
 
-\textit{Sviluppato da: Salvo Iurato}
+\textit{Developed by: Salvo Iurato}
 
 \medskip
 
-RIDNet (\textit{Real Image Denoising Network}) \`e un modello che combina convoluzioni dilatate e attention a livello di canale per catturare informazioni multi-scala senza ricorrere a operazioni di pooling.
+RIDNet~\cite{ridnet} (\textit{Real Image Denoising Network}) combines dilated convolutions and channel attention~\cite{se} to capture multi-scale information without pooling operations.
 
-\subsection{Enhancement Attention Block (EAB)}
-
-L'unit\`a fondamentale di RIDNet \`e l'\textit{Enhancement Attention Block}, composto da:
+\subsubsection{Enhancement Attention Block (EAB)}
+The fundamental building block consists of:
 \begin{enumerate}
-    \item Tre convoluzioni con dilatazione crescente ($d = 1, 2, 3$), ciascuna seguita da BatchNorm e ReLU. Questo expande il campo recettivo senza ridurre la risoluzione spaziale.
-    \item Un modulo \texttt{ChannelAttention} di tipo Squeeze-and-Excitation: Global Average Pooling $\to$ Conv $1\!\times\!1$ ($C \to C/r$) $\to$ ReLU $\to$ Conv $1\!\times\!1$ ($C/r \to C$) $\to$ Sigmoid, con fattore di riduzione $r = 16$.
-    \item Una connessione residuale locale con fattore di scala:
+    \item Three convolutions with increasing dilation ($d = 1, 2, 3$), each followed by BatchNorm and ReLU, expanding the receptive field without reducing spatial resolution.
+    \item A \texttt{ChannelAttention} module (Squeeze-and-Excitation): Global Average Pooling $\to$ Conv $1\!\times\!1$ ($C \!\to\! C/r$) $\to$ ReLU $\to$ Conv $1\!\times\!1$ ($C/r \!\to\! C$) $\to$ Sigmoid, with reduction factor $r = 16$.
+    \item A local residual connection with scaling factor:
 \end{enumerate}
-$$
+\begin{equation}
 \text{EAB}(x) = x + s \cdot \text{CA}(\text{dilated\_branch}(x))
-$$
+\end{equation}
+where $s$ is the \texttt{residual\_scale} (0.1 in our best experiments).
 
-dove $s$ \`e il \texttt{residual\_scale} (default 1.0, negli esperimenti 0.1).
-
-\subsection{Architettura completa}
-
+\subsubsection{Full Architecture}
 \begin{enumerate}
-    \item \textbf{Estrazione feature:} \texttt{Conv2d(3$\to$64, 3$\times$3)} + ReLU.
-    \item \textbf{Enhancement:} Sequenza di $N$ EAB (tipicamente $N = 8$).
-    \item \textbf{Ricostruzione:} \texttt{Conv2d(64$\to$3, 3$\times$3)} che predice il rumore.
-    \item \textbf{Residual globale:} $\hat{x} = x - f_\theta(x)$.
+    \item \textbf{Feature extraction:} \texttt{Conv2d($3 \!\to\! F$, $3\!\times\!3$)} + ReLU.
+    \item \textbf{Enhancement:} Sequence of $N$ EAB blocks ($N = 8$ in best config).
+    \item \textbf{Reconstruction:} \texttt{Conv2d($F \!\to\! 3$, $3\!\times\!3$)} predicting noise.
+    \item \textbf{Global residual:} $\hat{x} = x - f_\theta(x)$.
 \end{enumerate}
-
-In inferenza l'output viene clampato a $[-1, 1]$.
+Output is clamped to $[-1, 1]$ at inference.
 
 % ============================================================
-\section{Pix2Pix}
-\label{sec:pix2pix}
+\subsection{Pix2Pix}
+\label{subsec:pix2pix}
 
-\textit{Sviluppato da: Daniele Barbagallo}
+\textit{Developed by: Daniele Barbagallo}
 
 \medskip
 
-Pix2Pix \`e un framework di \textit{image-to-image translation} basato su Generative Adversarial Network (GAN) condizionale. Il sistema \`e composto da un \textbf{generatore} e un \textbf{discriminatore} addestrati in modo avversariale.
+Pix2Pix~\cite{pix2pix} is an image-to-image translation framework based on conditional GANs. The system comprises a \textbf{generator} and a \textbf{discriminator} trained adversarially.
 
-\subsection{Generatore}
+\subsubsection{Generator}
+The generator has a UNet-like architecture with 7 downsampling levels, designed for $256\!\times\!256$ inputs.
 
-Il generatore ha un'architettura UNet-like con 7 livelli di downsampling, progettata per input $256\!\times\!256$:
+\textbf{Encoder} (6 layers + bottleneck): Each layer uses \texttt{Conv2d($4\!\times\!4$, stride=2)} + BatchNorm + LeakyReLU(0.2). The first layer omits BatchNorm.
 
-\textbf{Encoder} (6 layer + bottleneck):
-$$
-\texttt{enc}_1(3 \to 64) \to \texttt{enc}_2(64 \to 128) \to \cdots \to \texttt{enc}_6(512 \to 512) \to \texttt{bottleneck}(512 \to 512)
-$$
+\textbf{Decoder} (6 layers + final): \texttt{ConvTranspose2d($4\!\times\!4$, stride=2)} + BatchNorm + ReLU, with Dropout(0.5) in the first 3 layers. Skip connections via concatenation with corresponding encoder features. The final layer produces 3 channels with Tanh activation (or without, for residual learning).
 
-Ogni layer usa \texttt{Conv2d(4$\times$4, stride=2)} + BatchNorm + LeakyReLU(0.2). Il primo layer non ha BatchNorm.
+\subsubsection{PatchGAN Discriminator}
+The discriminator operates on local image patches, classifying $70\!\times\!70$ regions as real or generated. Input is the concatenation of the conditional image (degraded) and target/generated image (6 channels total). The architecture consists of 4 convolutional blocks ($4\!\times\!4$, progressively reduced stride) producing single-channel logit output (no sigmoid).
 
-\textbf{Decoder} (6 layer + finale): \texttt{ConvTranspose2d(4$\times$4, stride=2)} + BatchNorm + ReLU, con Dropout(0.5) nei primi 3 layer. Skip connection via concatenazione con il corrispondente encoder. Il layer finale produce 3 canali con attivazione Tanh (o senza, per residual learning).
-
-\subsection{PatchGAN Discriminator}
-
-Il discriminatore opera su \textit{patch} locali dell'immagine, classificando regioni $70\!\times\!70$ come reali o generate. L'input \`e la concatenazione dell'immagine condizionale (degradata) e dell'immagine target/generata (6 canali totali).
-
-L'architettura consiste in 4 blocchi convoluzionali ($4\!\times\!4$, stride progressivamente ridotto) che riducono le feature da 64 a 512 canali, seguiti da una convoluzione finale $4\!\times\!4$ che produce un output a singolo canale (logits, senza sigmoide).
-
-\subsection{Modalit\`a di apprendimento}
-
-Nell'esperimento condotto, il generatore opera in \textbf{residual learning}: predice $\hat{n} = G(x_{\text{noisy}})$ (il rumore stimato) e l'immagine pulita si ottiene come:
-$$
+\subsubsection{Learning Mode}
+In our experiments, the generator operates in \textbf{residual learning} mode: it predicts $\hat{n} = G(x_{\text{noisy}})$ and the clean image is obtained as:
+\begin{equation}
 \hat{x} = \text{clamp}(x_{\text{noisy}} - \hat{n},\; -1,\; 1)
-$$
-
-Il rumore predetto viene inoltre clampato a $\pm 0.6$ per stabilit\`a.
+\end{equation}
+Predicted noise is additionally clamped to $\pm 0.6$ for stability.
 
 % ============================================================
-\section{NAFNet}
-\label{sec:nafnet}
+\subsection{NAFNet}
+\label{subsec:nafnet}
 
-\textit{Sviluppato da: Mattia Campanella}
+\textit{Developed by: Daniele Barbagallo}
 
 \medskip
 
-% TODO: Sezione da completare dopo il merge del branch di Mattia
-\textit{Sezione da completare --- codice non ancora presente sul branch main.}
+% TODO: Section to be completed by Daniele --- NAFNet experiments and architecture description.
+\textbf{[TODO --- Daniele]:} NAFNet~\cite{nafnet} (Nonlinear Activation Free Network) architecture description and implementation details to be added.
 
 % ============================================================
-\section{GAN}
-\label{sec:gan}
+\subsection{Swin2SR}
+\label{subsec:swin2sr}
 
-\textit{Sviluppato da: Daniele Barbagallo}
+\textit{Developed by: Daniele Barbagallo}
 
 \medskip
 
-% TODO: Sezione da completare dopo il merge del branch di Daniele (GAN aggiuntiva rispetto a Pix2Pix)
-\textit{Sezione da completare --- codice non ancora presente sul branch main.}
+% TODO: Section to be completed by Daniele --- Swin2SR experiments and architecture description.
+\textbf{[TODO --- Daniele]:} Swin2SR~\cite{swin2sr} (SwinV2 Transformer for image restoration) architecture description and implementation details to be added.
 
 % ============================================================
-\section{Riepilogo delle architetture}
+\subsection{Architecture Summary}
 
-\begin{table}[H]
+\begin{table}[t]
 \centering
 \small
+\setlength{\tabcolsep}{3pt}
 \begin{tabular}{lcccc}
 \toprule
-\textbf{Modello} & \textbf{Tipo} & \textbf{Residual} & \textbf{Attention} & \textbf{Attivazione output} \\
+\textbf{Model} & \textbf{Type} & \textbf{Residual} & \textbf{Attention} & \textbf{Output} \\
 \midrule
-UNet & Enc-Dec + skip & No & No & Nessuna \\
-UNet Residual & Enc-Dec + skip & S\`i & No & Nessuna \\
-Attention UNet & Enc-Dec + skip & No & AG (bottleneck/all) & Nessuna \\
-DnCNN & Sequenziale (20 layer) & S\`i & No & Clamp $[-1,1]$ \\
+UNet & Enc-Dec + skip & No & No & Linear \\
+UNet Residual & Enc-Dec + skip & Yes & No & Linear \\
+Attention UNet & Enc-Dec + skip & No & AG & Linear \\
+DnCNN & Sequential & Yes & No & Clamp \\
 Denoising AE & Enc-Dec (no skip) & No & No & Tanh \\
-RIDNet & Feature + EAB & S\`i & Channel (SE) & Clamp $[-1,1]$ \\
-Pix2Pix Gen. & UNet-like (7 livelli) & Configurabile & No & Tanh / Nessuna \\
+RIDNet & Feature + EAB & Yes & Channel & Clamp \\
+Pix2Pix Gen. & UNet-like (7L) & Config. & No & Tanh \\
 \bottomrule
 \end{tabular}
-\caption{Confronto delle architetture implementate.}
-\label{tab:architetture}
+\caption{Summary of implemented architectures. AG = Attention Gates; Channel = Squeeze-and-Excitation channel attention.}
+\label{tab:architectures}
 \end{table}

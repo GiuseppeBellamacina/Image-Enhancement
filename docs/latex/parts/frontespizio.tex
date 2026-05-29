@@ -1,40 +1,22 @@
-\begin{titlepage}
-    \centering
-    \vspace*{2cm}
+% ---- IEEE Title Block ----
+\title{Image Enhancement with Deep Learning:\\A Comparative Study of CNN-Based Image Restoration Methods}
 
-    {\LARGE \textbf{Universit\`a degli Studi di Catania}}\\[0.5cm]
-    {\large Dipartimento di Matematica e Informatica}\\[2.5cm]
-    {\Large \textbf{Corso di Deep Learning}}\\[0.3cm]
-    {\Large \textbf{Relazione Progetto}}\\[2cm]
+\author{
+\IEEEauthorblockN{Giuseppe Bellamacina, Daniele Barbagallo, Salvo Iurato, Mattia Campanella}
+\IEEEauthorblockA{
+Department of Mathematics and Computer Science\\
+University of Catania, Italy\\
+Deep Learning Course --- A.Y. 2025/2026\\
+Professors: G.M. Farinella, G. Ragusa
+}
+}
 
-    \rule{\linewidth}{0.5mm}\\[0.4cm]
-    {\huge \bfseries Image Enhancement with Deep Learning}\\[0.2cm]
-    {\Large Studio e confronto di metodi di restauro di immagini\\mediante reti neurali convoluzionali}\\[0.4cm]
-    \rule{\linewidth}{0.5mm}\\[2cm]
+\maketitle
 
-    \vfill
+\begin{abstract}
+We present a comprehensive comparative study of convolutional neural network architectures for image restoration under severe Gaussian noise ($\sigma = 100$). Seven distinct architectures are implemented within a unified, modular framework: UNet, UNet Residual, Attention UNet, DnCNN, Denoising Autoencoder, RIDNet, and Pix2Pix (conditional GAN). All models are trained and evaluated on the DIV2K dataset using consistent degradation, training infrastructure, and evaluation protocols. Our experiments demonstrate that RIDNet with 8 Enhancement Attention Blocks achieves the best overall performance (PSNR = 25.83~dB, SSIM = 0.725), followed closely by DnCNN (PSNR = 25.60~dB). We perform extensive ablation studies on architectural choices including upsampling strategies, attention mechanisms, loss function compositions, and training hyperparameters. Results show that residual learning, channel attention, and appropriate gradient clipping are critical factors for high-quality denoising under heavy noise conditions.
+\end{abstract}
 
-    \begin{minipage}{0.5\textwidth}
-        \begin{flushleft}
-            \large
-            \textit{Autori:}\\[0.3cm]
-            \textbf{Giuseppe \textsc{Bellamacina}}\\[0.15cm]
-            \textbf{Salvo \textsc{Iurato}}\\[0.15cm]
-            \textbf{Mattia \textsc{Campanella}}\\[0.15cm]
-            \textbf{Daniele \textsc{Barbagallo}}
-        \end{flushleft}
-    \end{minipage}
-    \hfill
-    \begin{minipage}{0.4\textwidth}
-        \begin{flushright}
-            \large
-            \textit{Professore del corso:}\\
-            % TODO: inserire il nome del professore
-            \textbf{Prof.~\textsc{...}}\\
-        \end{flushright}
-    \end{minipage}
-
-    \vspace{2cm}
-
-    {\large Anno Accademico 2025/2026}
-\end{titlepage}
+\begin{IEEEkeywords}
+Image denoising, convolutional neural networks, residual learning, attention mechanisms, image restoration, deep learning
+\end{IEEEkeywords}

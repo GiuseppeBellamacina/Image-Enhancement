@@ -1,109 +1,87 @@
-\chapter{Training}
+\section{Training}
+\label{sec:training}
 
-\section{Pipeline di addestramento}
+\subsection{Training Pipeline}
 
-Il training loop \`e implementato nel modulo \texttt{trainer.py} e supporta tutte le architetture tramite un'interfaccia unificata. La funzione \texttt{run\_training} orchestra l'intero processo: warmup del learning rate, alternanza train/validation, checkpointing, early stopping e logging.
+The training loop is implemented in \texttt{trainer.py} and supports all architectures through a unified interface. The function \texttt{run\_training} orchestrates the entire process: learning rate warmup, train/validation alternation, checkpointing, early stopping, and logging.
 
-\subsection{Mixed Precision (AMP)}
+\subsubsection{Mixed Precision (AMP)}
+All experiments (except the Denoising Autoencoder) use PyTorch Automatic Mixed Precision~\cite{amp}: forward pass operations execute in FP16 via \texttt{torch.autocast}, while the loss is always computed in FP32 for numerical stability. A \texttt{GradScaler} manages gradient rescaling. Validation is \textbf{always} performed in full precision, regardless of AMP settings, to avoid instabilities caused by BatchNorm in eval mode interacting with FP16.
 
-Tutti gli esperimenti (eccetto il Denoising Autoencoder) utilizzano Automatic Mixed Precision di PyTorch: le operazioni nel forward pass vengono eseguite in FP16 con \texttt{torch.autocast}, mentre la loss viene sempre calcolata in FP32 per stabilit\`a numerica. Un \texttt{GradScaler} gestisce il ridimensionamento dei gradienti.
+\subsubsection{Learning Rate Warmup}
+The first \texttt{warmup\_epochs} (typically 5--8) use linear warmup of the learning rate from a small initial value to the target rate. The main scheduler (CosineAnnealing or StepLR) activates only after warmup completion.
 
-La validazione viene eseguita \textbf{sempre in full precision}, indipendentemente dall'impostazione AMP, per evitare instabilit\`a causate dall'interazione tra BatchNorm in modalit\`a eval e FP16.
+\subsubsection{Gradient Clipping}
+Gradients are clipped via \texttt{clip\_grad\_norm\_} with a configurable maximum norm (typically 0.5--1.0). Under AMP, gradients are first unscaled by the \texttt{GradScaler} before clipping.
 
-\subsection{Learning Rate Warmup}
+\subsubsection{Early Stopping}
+The patience counter increments only at validation epochs where the validation loss does not improve. This allows configuring validation at intervals (\eg, every 2 epochs) without penalizing the patience count.
 
-I primi \texttt{warmup\_epochs} (tipicamente 5--8) utilizzano un warmup lineare del learning rate da \texttt{warmup\_start\_lr} (o $\text{lr} \times \frac{\text{epoch}}{\text{warmup\_epochs}}$ se non specificato) fino al learning rate target. Lo scheduler principale (CosineAnnealing o StepLR) viene attivato solo al termine del warmup.
-
-\subsection{Gradient Clipping}
-
-I gradienti vengono clippati tramite \texttt{clip\_grad\_norm\_} con norma massima configurabile (tipicamente 0.5--1.0). In caso di AMP, i gradienti vengono prima ``unscaled'' dal \texttt{GradScaler} prima del clipping.
-
-\subsection{Early Stopping}
-
-Il contatore di patience viene incrementato solo nelle epoche di validazione in cui la val loss non migliora. Questo permette di configurare la validazione a intervalli (es.\ ogni 2 epoche) senza penalizzare il conteggio.
-
-\subsection{Gestione errori OOM}
-
-In caso di errore \textit{Out of Memory} durante il training, il sistema:
-\begin{enumerate}
-    \item Salva un checkpoint di emergenza
-    \item Libera la memoria CUDA
-    \item Stampa un messaggio diagnostico con suggerimenti (ridurre batch/patch size, abilitare AMP)
-\end{enumerate}
+\subsubsection{OOM Error Handling}
+On Out-of-Memory errors during training, the system: (1) saves an emergency checkpoint, (2) frees CUDA memory, and (3) prints diagnostic suggestions (reduce batch/patch size, enable AMP).
 
 % ============================================================
-\section{Training Pix2Pix}
+\subsection{Pix2Pix Training}
 
-Il training del Pix2Pix segue il paradigma GAN con addestramento alternato di generatore e discriminatore.
+Pix2Pix follows the GAN paradigm with alternating discriminator and generator updates.
 
-\subsection{Training del Discriminatore}
-
-Il discriminatore riceve coppie di immagini (condizionale + target):
+\subsubsection{Discriminator Training}
+The discriminator receives image pairs (conditional + target):
 \begin{itemize}
-    \item \textbf{Coppie reali:} $(x_{\text{degraded}},\; x_{\text{clean}}) \to$ label 1
-    \item \textbf{Coppie false:} $(x_{\text{degraded}},\; G(x_{\text{degraded}})) \to$ label 0
+    \item \textbf{Real pairs:} $(x_{\text{degraded}}, x_{\text{clean}}) \to$ label 1
+    \item \textbf{Fake pairs:} $(x_{\text{degraded}}, G(x_{\text{degraded}})) \to$ label 0
 \end{itemize}
+\begin{equation}
+\mathcal{L}_D = \tfrac{1}{2}\left(\text{BCE}(D(x, y_{\text{real}}), 1) + \text{BCE}(D(x, y_{\text{fake}}), 0)\right)
+\end{equation}
 
-La loss del discriminatore \`e:
-$$
-\mathcal{L}_D = \frac{1}{2}\left(\text{BCE}(D(x, y_{\text{real}}), 1) + \text{BCE}(D(x, y_{\text{fake}}), 0)\right)
-$$
+\subsubsection{Generator Training}
+The generator loss combines adversarial and reconstruction components:
+\begin{equation}
+\mathcal{L}_G = \text{BCE}(D(x, G(x)), 1) + \lambda_{\text{L1}} \cdot \mathcal{L}_{\text{recon}}(G(x), y)
+\end{equation}
+where $\lambda_{\text{L1}} = 150$ and the reconstruction loss is the Combined Loss (L1 + SSIM). The high $\lambda_{\text{L1}}$ balances the adversarial component, which tends to dominate in early training phases.
 
-\subsection{Training del Generatore}
-
-La loss del generatore combina la componente avversariale con una loss di ricostruzione:
-$$
-\mathcal{L}_G = \text{BCE}(D(x, G(x)), 1) + \lambda_{\text{L1}} \cdot \mathcal{L}_{\text{reconstruction}}(G(x), y)
-$$
-
-dove $\lambda_{\text{L1}} = 150$ e la loss di ricostruzione \`e la \texttt{CombinedLoss} (L1 + SSIM). Il fattore $\lambda_{\text{L1}}$ elevato bilancia la componente avversariale, che tende a dominare nelle prime fasi del training.
-
-\subsection{Diagnostica del rumore}
-
-In modalit\`a residual learning, vengono monitorate statistiche sul rumore predetto: media, deviazione standard, valore massimo, percentuale di outlier (valori che superano il clamp prima del clamping) e percentuale di pixel clippati nell'output.
+\subsubsection{Noise Diagnostics}
+In residual learning mode, statistics on predicted noise are monitored: mean, standard deviation, maximum value, outlier percentage (values exceeding the clamp threshold), and percentage of clipped output pixels.
 
 % ============================================================
-\section{Configurazioni degli esperimenti}
+\subsection{Experiment Configurations}
 
-La tabella seguente riassume gli iperparametri principali di ciascun esperimento condotto. Tutti gli esperimenti utilizzano il dataset DIV2K con rumore gaussiano $\sigma = 100$, salvo diversa indicazione.
+Table~\ref{tab:hyperparameters} summarizes the main hyperparameters for each model's best experiment. All experiments use DIV2K with Gaussian noise $\sigma = 100$ unless otherwise noted.
 
-\begin{table}[H]
+\begin{table*}[t]
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{lccccccc}
+\begin{tabular}{lccccccccc}
 \toprule
-\textbf{Modello} & \textbf{Loss} & \textbf{LR} & \textbf{Epoche} & \textbf{Batch} & \textbf{Patch} & \textbf{Warmup} & \textbf{Patience} \\
+\textbf{Model} & \textbf{Loss ($\alpha/\beta/\gamma$)} & \textbf{LR} & \textbf{Optimizer} & \textbf{Epochs} & \textbf{Batch} & \textbf{Patch} & \textbf{Warmup} & \textbf{Patience} & \textbf{Scheduler} \\
 \midrule
-UNet (bilinear) & L1+SSIM & 1e-4 & 36 & 16 & 128 & 5 & 5 \\
-UNet Res. (bilinear) & L1+SSIM+VGG & 1e-4 & 36 & 16 & 128 & 5 & 5 \\
-UNet Res. (transconv) & L1+SSIM+VGG & 1e-4 & 36 & 16 & 128 & 5 & 5 \\
-Att.\ UNet (bilinear, all) & L1+SSIM+VGG & 4e-5 & 36 & 16 & 128 & 8 & 5 \\
-Att.\ UNet (bilinear, btlnk) & L1+SSIM+VGG & 4e-5 & 36 & 16 & 128 & 8 & 3 \\
-Att.\ UNet (transconv, all) & L1+SSIM+VGG & 4e-5 & 36 & 16 & 128 & 8 & 5 \\
-Att.\ UNet (transconv, btlnk) & L1+SSIM+VGG & 4e-5 & 36 & 16 & 128 & 8 & 5 \\
+UNet (bilinear) & L1+SSIM (0.84/0.16) & 1e-4 & AdamW & 36 & 16 & 128 & 5 & 5 & Cosine \\
+UNet Res. (bilinear) & L1+SSIM+VGG (0.6/0.25/0.15) & 1e-4 & AdamW & 36 & 16 & 128 & 5 & 5 & Cosine \\
+Att.\ UNet (btlnk) & L1+SSIM+VGG (0.65/0.3/0.05) & 4e-5 & AdamW & 36 & 16 & 128 & 8 & 5 & Cosine \\
+DnCNN (17L, 64F) & L1+SSIM (0.85/0.15) & 1e-3 & Adam & 100 & 32 & 96 & --- & 10 & Step \\
+Denoising AE & L1+SSIM (0.84/0.16) & 1e-4 & Adam & 200 & 40 & 128 & 2 & 15 & Cosine \\
+RIDNet (8 EAB) & L1+SSIM (0.8/0.2) & 1e-4 & Adam & 150 & 8 & 256 & 5 & 10 & Cosine \\
 \midrule
-DnCNN-20 & L1+SSIM & 1e-4 & 100 & 64 & 80 & --- & 10 \\
-Denoising AE & L1+SSIM & 1e-4 & 200 & 40 & 128 & 2 & 15 \\
-RIDNet (8 EAB) & L1+SSIM & 1e-4 & 150 & 8 & 256 & 5 & 10 \\
-\midrule
-Pix2Pix & GAN+L1+SSIM & G:2e-4 & 150 & 8 & 384 & --- & 25 \\
+Pix2Pix (TODO) & GAN+L1+SSIM & G:2e-4 & Adam & 150 & 8 & 384 & --- & 25 & --- \\
 \bottomrule
 \end{tabular}
-\caption{Iperparametri di training per ciascun esperimento. Le loss L1+SSIM usano pesi $\alpha\!=\!0.84, \beta\!=\!0.16$; le loss L1+SSIM+VGG usano $\alpha\!=\!0.6, \beta\!=\!0.25, \gamma\!=\!0.15$ (salvo varianti bottleneck con $0.65/0.3/0.05$).}
-\label{tab:iperparametri}
-\end{table}
+\caption{Training hyperparameters for each model's best configuration. Gaussian noise $\sigma = 100$ on DIV2K. Loss weights shown as $\alpha/\beta$ (L1/SSIM) or $\alpha/\beta/\gamma$ (L1/SSIM/Perceptual).}
+\label{tab:hyperparameters}
+\end{table*}
 
-\subsection{Note sugli esperimenti}
+\subsection{Implementation Notes}
 
 \begin{itemize}
-    \item \textbf{Ottimizzatore:} Tutti i modelli usano AdamW ($\text{weight\_decay} = 10^{-5}$), eccetto DnCNN e RIDNet che usano Adam ($\text{weight\_decay} = 10^{-4}$) e Pix2Pix che usa Adam con $\beta_1 = 0.5$.
+    \item \textbf{Optimizers:} UNet variants use AdamW ($\text{weight\_decay} = 10^{-5}$). DnCNN uses Adam with \textbf{no weight decay} (found empirically beneficial). RIDNet uses Adam ($\text{weight\_decay} = 10^{-4}$). Pix2Pix uses Adam with $\beta_1 = 0.5$.
     
-    \item \textbf{Scheduler:} CosineAnnealingLR per la maggior parte dei modelli; StepLR (step=1, $\gamma\!=\!0.96$) per DnCNN; ReduceLROnPlateau per il discriminatore Pix2Pix; nessuno scheduler per il generatore Pix2Pix.
+    \item \textbf{Schedulers:} CosineAnnealingLR for most models; StepLR (step=1, $\gamma = 0.96$) for DnCNN; no scheduler for Pix2Pix generator.
     
-    \item \textbf{Attention UNet --- varianti bottleneck:} Utilizzano GroupNorm invece di BatchNorm, layer percettuali meno profondi (\texttt{relu1\_2} + \texttt{relu2\_2} anzich\'e \texttt{relu2\_2} + \texttt{relu3\_3}) e peso percettuale ridotto ($\gamma = 0.05$).
+    \item \textbf{Attention UNet bottleneck variants:} Use GroupNorm instead of BatchNorm, shallower perceptual layers (\texttt{relu1\_2} + \texttt{relu2\_2}), and reduced perceptual weight ($\gamma = 0.05$).
     
-    \item \textbf{RIDNet:} Utilizza 8 EAB con \texttt{residual\_scale} = 0.1, feature a 96 canali (anzich\'e 64) e gradient clip a 0.5 (pi\`u restrittivo della norma 1.0 usata dagli altri).
+    \item \textbf{RIDNet specifics:} 8 EAB blocks with \texttt{residual\_scale} = 0.1, 96 feature channels (vs.\ 64 default), and stricter gradient clipping (norm = 0.5).
     
-    \item \textbf{Dithering:} Sono stati condotti due esperimenti anche con degradazione di tipo quantizzazione a 2 bit con random dithering, usando la UNet base.
+    \item \textbf{Dithering experiments:} Two additional experiments were conducted with 2-bit random dithering using the base UNet (both bilinear and transposed convolution variants).
 \end{itemize}

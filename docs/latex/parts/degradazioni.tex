@@ -1,61 +1,52 @@
-\chapter{Degradazioni}
+\section{Degradation Models}
+\label{sec:degradations}
 
-Le degradazioni sono il punto di partenza della pipeline: trasformano le immagini pulite in versioni corrotte che i modelli dovranno imparare a restaurare. Sono state implementate tre tipologie di degradazione, ciascuna parametrizzabile e riproducibile tramite seed.
+Degradations are the starting point of the restoration pipeline: they transform clean images into corrupted versions that models must learn to restore. Three types of parametric, reproducible degradations were implemented.
 
-\section{Rumore Gaussiano}
+\subsection{Gaussian Noise}
 
-Il rumore gaussiano \`e la degradazione principale utilizzata negli esperimenti. Dato un pixel con valore $x$, l'immagine corrotta si ottiene come:
-$$
+Gaussian noise is the primary degradation used in our experiments. Given a pixel value $x$, the corrupted image is obtained as:
+\begin{equation}
 \tilde{x} = \text{clip}\!\left(x + \mathcal{N}(0, \sigma^2),\; 0,\; 255\right)
-$$
+\label{eq:gaussian}
+\end{equation}
+where $\sigma$ controls noise intensity. We use $\sigma = 100$, a deliberately high value that severely corrupts image content and challenges the reconstruction capacity of all models. For reproducibility, each image receives a unique seed computed as $\texttt{seed} + \texttt{image\_index}$.
 
-dove $\sigma$ controlla l'intensit\`a del rumore. Negli esperimenti \`e stato utilizzato $\sigma = 100$, un valore volutamente elevato per mettere alla prova la capacit\`a di restauro dei modelli. Per garantire la riproducibilit\`a, ogni immagine riceve un seed univoco calcolato come \texttt{seed + image\_index}.
+\subsection{Quantization and Dithering}
 
-\section{Quantizzazione e Dithering}
+Quantization reduces the color depth of an image, mapping the original 256 levels per channel to $L = 2^b$ levels where $b$ is the number of bits per channel.
 
-La quantizzazione riduce la profondit\`a di colore dell'immagine, mappando i 256 livelli originali per canale in un numero ridotto $L = 2^b$ dove $b$ \`e il numero di bit per canale. Sono stati implementati quattro metodi:
-
-\subsection{Quantizzazione semplice}
-
-Applica una riduzione diretta della profondit\`a:
-$$
+\subsubsection{Simple Quantization}
+Direct depth reduction:
+\begin{equation}
 q(x) = \text{round}\!\left(\frac{x}{255} \cdot (L-1)\right) \cdot \frac{255}{L-1}
-$$
+\end{equation}
 
-\subsection{Random Dithering}
-
-Prima della quantizzazione, aggiunge rumore uniforme nell'intervallo $\left[-\frac{s}{2},\; \frac{s}{2}\right]$ dove $s = \frac{255}{L-1}$ \`e il passo di quantizzazione:
-$$
+\subsubsection{Random Dithering}
+Before quantization, uniform noise is added in the interval $[-s/2, s/2]$ where $s = 255/(L-1)$ is the quantization step:
+\begin{equation}
 \tilde{x} = q\!\left(x + \mathcal{U}\!\left(-\frac{s}{2},\; \frac{s}{2}\right) \cdot \text{noise\_strength}\right)
-$$
+\end{equation}
+This breaks the banding patterns typical of simple quantization.
 
-Questo approccio spezza i pattern a bande tipici della quantizzazione semplice.
+\subsubsection{Ordered Dithering (Bayer)}
+Uses Bayer matrices ($2\!\times\!2$, $4\!\times\!4$, or $8\!\times\!8$) as spatially-varying thresholds. The Bayer matrix is normalized to $[-0.5, 0.5]$ and added to the image before quantization, producing regular, visually pleasing patterns.
 
-\subsection{Ordered Dithering (Bayer)}
-
-Utilizza matrici di Bayer ($2\!\times\!2$, $4\!\times\!4$ o $8\!\times\!8$) come soglie spazialmente variabili. La matrice di Bayer viene normalizzata nell'intervallo $[-0.5, 0.5]$ e sommata all'immagine prima della quantizzazione, producendo pattern regolari e visivamente gradevoli.
-
-\subsection{Floyd-Steinberg Dithering}
-
-Algoritmo di \textit{error diffusion} che processa l'immagine pixel per pixel. L'errore di quantizzazione $e = x - q(x)$ viene distribuito ai pixel adiacenti non ancora processati secondo il kernel:
-$$
+\subsubsection{Floyd-Steinberg Dithering}
+An error diffusion algorithm~\cite{floyd} that processes the image pixel by pixel. The quantization error $e = x - q(x)$ is distributed to adjacent unprocessed pixels according to the kernel:
+\begin{equation}
 \begin{bmatrix}
 \cdot & \cdot & \cdot \\
-\cdot & \ast & \frac{7}{16} \\
+\cdot & \ast & \frac{7}{16} \\[3pt]
 \frac{3}{16} & \frac{5}{16} & \frac{1}{16}
 \end{bmatrix}
-$$
+\end{equation}
+where $\ast$ denotes the current pixel. This produces perceptually superior results at the cost of sequential processing.
 
-dove $\ast$ indica il pixel corrente. Questo produce risultati percettivamente superiori, al costo di un'elaborazione sequenziale.
+\subsection{Salt-and-Pepper Noise}
 
-\section{Salt-and-Pepper}
+Salt-and-pepper noise replaces a fraction $p$ of pixels with extreme values: the parameter \texttt{salt\_vs\_pepper} controls the ratio between white pixels (255, \textit{salt}) and black pixels (0, \textit{pepper}).
 
-Il rumore \textit{salt-and-pepper} sostituisce una frazione \texttt{amount} dei pixel dell'immagine con valori estremi: il parametro \texttt{salt\_vs\_pepper} controlla la proporzione tra pixel bianchi ($255$, \textit{salt}) e neri ($0$, \textit{pepper}).
+\subsection{Automated Dataset Generation}
 
-\section{Generazione automatica del dataset}
-
-Il modulo \texttt{generate\_degraded\_dataset.py} fornisce due funzioni principali:
-\begin{itemize}
-    \item \texttt{generate\_degraded\_dataset}: applica una degradazione a tutte le immagini PNG/JPG di una directory;
-    \item \texttt{generate\_degraded\_dataset\_auto}: genera automaticamente la struttura di directory organizzata (es.\ \texttt{data/degraded/gaussian/sigma\_100/DIV2K\_train\_HR/}), saltando la generazione se il dataset esiste gi\`a.
-\end{itemize}
+The module \texttt{generate\_degraded\_dataset.py} provides batch processing of entire image directories with automatic path generation following a consistent naming convention (\eg, \texttt{data/degraded/gaussian/sigma\_100/DIV2K\_train\_HR/}). Generation is skipped if the degraded dataset already exists, ensuring reproducibility without redundant computation.

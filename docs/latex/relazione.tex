@@ -14,6 +14,7 @@
 \usepackage{xcolor}
 \usepackage{textcomp}
 \usepackage{balance}
+\usepackage{microtype}  % Improves line-breaking in narrow columns
 
 % ---- Code listings ----
 \usepackage{listings}
@@ -54,6 +55,11 @@
 \newcommand{\ie}{\textit{i.e.}}
 \newcommand{\eg}{\textit{e.g.}}
 \newcommand{\etal}{\textit{et al.}}
+
+% ---- Fix uneven word spacing in narrow columns ----
+\tolerance=1000
+\emergencystretch=1.5em
+\hbadness=10000
 
 \begin{document}
 

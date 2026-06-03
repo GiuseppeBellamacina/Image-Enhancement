@@ -19,6 +19,10 @@ This work presented a comprehensive comparative study of eight deep learning arc
     \item \textbf{Training hyperparameters can dominate architecture choice:} A 10$\times$ learning rate reduction degrades DnCNN by 2.74~dB---more than the gap between the best and worst architectures. GAN training requires careful discriminator-generator LR asymmetry.
     
     \item \textbf{Skip connections dramatically accelerate convergence:} UNet variants converge in 10--36 epochs vs.\ 200 epochs for the skip-free Denoising Autoencoder, highlighting the importance of direct gradient paths.
+    
+    \item \textbf{Architectural advantages scale with degradation severity:} At $\sigma = 50$, NAFNet and the DAE achieve comparable performance ($\Delta = +0.05$~dB). At $\sigma = 100$, the gap widens to +2.09~dB, indicating that skip connections and attention mechanisms become essential only when noise exceeds the bottleneck's encoding capacity.
+    
+    \item \textbf{Model scaling shows diminishing returns:} Tripling NAFNet encoder depth yields only +0.08~dB while consuming 3.5$\times$ more memory, suggesting that training strategy innovations (multi-stage, loss scheduling) offer better returns than architectural scaling alone.
 \end{enumerate}
 
 \subsection{Architectural Insights}

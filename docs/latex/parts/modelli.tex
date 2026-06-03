@@ -21,8 +21,8 @@ The encoder consists of 4 downsampling stages, each comprising a \texttt{DoubleC
 
 The decoder reconstructs spatial resolution via upsampling. Two modes are supported:
 \begin{itemize}
-    \item \textbf{Bilinear:} \texttt{nn.Upsample(scale\_factor=2, mode=`bilinear')} followed by \texttt{DoubleConv}.
-    \item \textbf{Transposed Convolution:} \texttt{ConvTranspose2d(kernel=2, stride=2)}.
+    \item \textbf{Bilinear:} {\footnotesize\texttt{nn.Upsample(scale\_factor=2, mode=`bilinear')}} + \texttt{DoubleConv}.
+    \item \textbf{Transposed Conv.:} \texttt{ConvTranspose2d(\allowbreak{}kernel=2, stride=2)}.
 \end{itemize}
 
 At each decoder level, encoder features are concatenated via skip connections. The final output is a $1\!\times\!1$ convolution mapping from 64 to 3 channels, without activation.
@@ -114,7 +114,7 @@ The \textbf{encoder} performs 4 downsampling stages via strided convolutions ($3
 3 \xrightarrow{\text{s2}} 128 \xrightarrow{\text{s2}} 64 \xrightarrow{\text{s2}} 32 \xrightarrow{\text{s2}} 16 \text{ (spatial)} 
 \end{equation}
 
-The \textbf{decoder} reconstructs resolution via \texttt{Upsample(bilinear)} + \texttt{Conv2d($3\!\times\!3$)} at each stage, with BatchNorm and LeakyReLU, followed by a final Tanh activation producing output in $[-1, 1]$.
+The \textbf{decoder} reconstructs resolution via \texttt{Upsample\allowbreak{}(bilinear)} + \texttt{Conv2d($3\!\times\!3$)} at each stage, with BatchNorm and LeakyReLU, followed by a final Tanh activation producing output in $[-1, 1]$.
 
 The absence of skip connections forces the bottleneck to encode all information necessary for reconstruction, making the model more ``lossy'' but simpler, and serving as a lower bound for architectures with skip connections.
 
@@ -132,7 +132,7 @@ RIDNet~\cite{ridnet} (\textit{Real Image Denoising Network}) combines dilated co
 The fundamental building block consists of:
 \begin{enumerate}
     \item Three convolutions with increasing dilation ($d = 1, 2, 3$), each followed by BatchNorm and ReLU, expanding the receptive field without reducing spatial resolution.
-    \item A \texttt{ChannelAttention} module (Squeeze-and-Excitation): Global Average Pooling $\to$ Conv $1\!\times\!1$ ($C \!\to\! C/r$) $\to$ ReLU $\to$ Conv $1\!\times\!1$ ($C/r \!\to\! C$) $\to$ Sigmoid, with reduction factor $r = 16$.
+    \item A \texttt{Channel\-Attention} module (Squeeze-and-Excitation): Global Average Pooling $\to$ Conv $1\!\times\!1$ ($C \!\to\! C/r$) $\to$ ReLU $\to$ Conv $1\!\times\!1$ ($C/r \!\to\! C$) $\to$ Sigmoid, with reduction factor $r = 16$.
     \item A local residual connection with scaling factor:
 \end{enumerate}
 \begin{equation}
@@ -153,7 +153,7 @@ Output is clamped to $[-1, 1]$ at inference.
 \subsection{NAFNet}
 \label{subsec:nafnet}
 
-\textit{Developed by: Daniele Barbagallo}
+\textit{Developed by: Daniele Barbagallo (V2, $\sigma\!=\!100$) and Mattia Campanella (scaling study, $\sigma\!=\!50$)}
 
 \medskip
 
@@ -173,10 +173,16 @@ The core building block avoids traditional activations:
 \subsubsection{Full Architecture}
 The model follows a UNet-like hierarchical structure:
 \begin{itemize}
-    \item \textbf{Encoder:} 4 levels with $[1, 1, 2, 8]$ NAFBlocks, downsampling via strided convolutions (width = 64).
-    \item \textbf{Middle:} 1 NAFBlock at the bottleneck.
-    \item \textbf{Decoder:} 4 levels with $[1, 1, 1, 1]$ NAFBlocks, upsampling via pixel-shuffle.
+    \item \textbf{Encoder:} 4 levels with configurable NAFBlock counts, downsampling via strided convolutions (width = 64).
+    \item \textbf{Middle:} Configurable number of NAFBlocks at the bottleneck.
+    \item \textbf{Decoder:} 4 levels with NAFBlocks, upsampling via pixel-shuffle.
     \item \textbf{Skip connections:} Element-wise addition between encoder and decoder features.
+\end{itemize}
+
+Two configurations were explored:
+\begin{itemize}
+    \item \textbf{V2 ($\sigma\!=\!100$):} Encoder [1,1,2,8], middle 1, decoder [1,1,1,1]---used for the main comparison with multi-stage training.
+    \item \textbf{Small/Large ($\sigma\!=\!50$):} Encoder [1,1,2,4]/[2,2,4,8], middle 1/8, decoder [1,1,1,1]/[2,2,2,2]---used for scaling analysis.
 \end{itemize}
 
 \subsubsection{V2 Modifications}
@@ -202,7 +208,7 @@ The generator has a UNet-like architecture with 7 downsampling levels, designed 
 
 \textbf{Encoder} (6 layers + bottleneck): Each layer uses \texttt{Conv2d($4\!\times\!4$, stride=2)} + BatchNorm + LeakyReLU(0.2). The first layer omits BatchNorm.
 
-\textbf{Decoder} (6 layers + final): \texttt{ConvTranspose2d($4\!\times\!4$, stride=2)} + BatchNorm + ReLU, with Dropout(0.5) in the first 3 layers. Skip connections via concatenation with corresponding encoder features. The final layer produces 3 channels with Tanh activation (or without, for residual learning).
+\textbf{Decoder} (6 layers + final): \texttt{Conv\-Transpose2d(\allowbreak{}$4\!\times\!4$, stride=2)} + BatchNorm + ReLU, with Dropout(0.5) in the first 3 layers. Skip connections via concatenation with corresponding encoder features. The final layer produces 3 channels with Tanh activation (or without, for residual learning).
 
 \subsubsection{PatchGAN Discriminator}
 The discriminator operates on local image patches, classifying $70\!\times\!70$ regions as real or generated. Input is the concatenation of the conditional image (degraded) and target/generated image (6 channels total). The architecture consists of 4 convolutional blocks ($4\!\times\!4$, progressively reduced stride) producing single-channel logit output (no sigmoid).

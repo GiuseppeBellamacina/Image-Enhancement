@@ -87,4 +87,6 @@ Pix2Pix & GAN+L1+SSIM & G:2e-4 & Adam & 150 & 8 & 384 & --- & 25 & --- \\
     \item \textbf{Dithering experiments:} Two additional experiments were conducted with 2-bit random dithering using the base UNet (both bilinear and transposed convolution variants).
     
     \item \textbf{NAFNet-V2 multi-stage pipeline:} Base training (LR=$10^{-3}$, 32 epochs, 4 patches/img) $\to$ Fork (inherit weights, reduce to 1 patch/img, 80 epochs) $\to$ Fine-tune (LR=$2\times10^{-5}$, add SSIM $\beta = 0.05$, 16 epochs). Stochastic Depth (drop\_path=0.05) prevents overfitting across stages.
+    
+    \item \textbf{NAFNet scaling study ($\sigma\!=\!50$):} Single-stage training with L1+SSIM loss ($\alpha\!=\!0.9$, $\beta\!=\!0.1$), batch size 25, 1 patch/image, LR=$10^{-3}$ (Small) or $7\!\times\!10^{-4}$ (Large), no warmup, patience 12/20.
 \end{itemize}

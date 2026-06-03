@@ -5,7 +5,7 @@ The training infrastructure is shared across all models and comprises the PyTorc
 
 \subsection{Dataset and Data Loading}
 
-The \texttt{ImageEnhancementDataset} class extends \texttt{torch.utils.data.Dataset} and manages loading of (degraded, clean) image pairs with random patch extraction.
+The \texttt{Image\-Enhancement\-Dataset} class extends \texttt{torch.\allowbreak{}utils.\allowbreak{}data.\allowbreak{}Dataset} and manages loading of (degraded, clean) image pairs with random patch extraction.
 
 \subsubsection{Patch Extraction}
 Each image is divided into square patches of configurable size (typically $128\!\times\!128$ or $256\!\times\!256$). For each image, \texttt{patches\_per\_image} patches are extracted at random positions, so the effective dataset length is:

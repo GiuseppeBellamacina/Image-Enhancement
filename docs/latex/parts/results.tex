@@ -218,6 +218,54 @@ Fork (1 patch/img) & Charb. & 1e-3 & +80 & 26.36 & 0.746 \\
 
 The NAFNet-V2 ablation (Table~\ref{tab:nafnet_ablation}) demonstrates the value of staged training: (1) Replacing L1 with Charbonnier loss provides +0.28~dB by eliminating gradient discontinuity at zero. (2) Forking from a pre-trained checkpoint with reduced patches per image (4$\to$1) allows 80 additional epochs at lower per-epoch cost. (3) Fine-tuning at very low LR ($2 \times 10^{-5}$) with a small SSIM component ($\beta = 0.05$) stabilizes final weights, reaching peak SSIM of 0.747. Note that a failed fine-tuning attempt with LR $= 10^{-4}$ degraded PSNR to 25.71~dB, confirming that late-stage optimization requires extremely conservative learning rates.
 
+\subsubsection{NAFNet: Architecture Scaling (\texorpdfstring{$\sigma = 50$}{sigma=50})}
+
+A separate set of experiments explored NAFNet scaling behavior at moderate noise ($\sigma = 50$), comparing a lightweight ``Small'' configuration against a deeper ``Large'' variant.
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Config} & \textbf{Enc.} & \textbf{Mid.} & \textbf{PSNR} & \textbf{SSIM} & \textbf{Mem.} & \textbf{Time} \\
+\midrule
+Small & [1,1,2,4] & 1 & 26.39 & 0.699 & 387 MB & 28 min \\
+\textbf{Large} & \textbf{[2,2,4,8]} & \textbf{8} & \textbf{26.47} & \textbf{0.699} & 1347 MB & 3.82 h \\
+\bottomrule
+\end{tabular}
+\caption{NAFNet architecture scaling at $\sigma = 50$. The Large variant gains only +0.08~dB while consuming 3.5$\times$ more GPU memory and 8$\times$ more training time.}
+\label{tab:nafnet_scaling}
+\end{table}
+
+Table~\ref{tab:nafnet_scaling} reveals strong diminishing returns: tripling encoder depth and adding 7 middle blocks yields a negligible +0.08~dB improvement, while increasing memory by 3.5$\times$ (387$\to$1347~MB) and training time by 8$\times$ (28~min$\to$3.82~h). SSIM remains identical (0.699), suggesting that both configurations reach the same structural quality ceiling for this noise level.
+
+\subsubsection{Cross-Noise-Level Analysis}
+
+Comparing results at $\sigma = 50$ and $\sigma = 100$ reveals how architectural advantages scale with degradation severity:
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Model} & \multicolumn{2}{c}{\textbf{$\sigma = 50$}} & \multicolumn{2}{c}{\textbf{$\sigma = 100$}} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5}
+ & PSNR & SSIM & PSNR & SSIM \\
+\midrule
+NAFNet (Small/V2) & 26.39 & 0.699 & 26.36 & 0.747 \\
+DAE (F=256/F=64) & 26.34 & 0.715 & 24.27 & 0.660 \\
+\midrule
+$\Delta$ (NAFNet$-$DAE) & +0.05 & $-$0.016 & +2.09 & +0.087 \\
+\bottomrule
+\end{tabular}
+\caption{Cross-noise-level comparison. At $\sigma = 50$, NAFNet and DAE achieve nearly identical performance. At $\sigma = 100$, NAFNet's skip connections and attention mechanisms provide a decisive +2.09~dB advantage.}
+\label{tab:cross_noise}
+\end{table}
+
+Table~\ref{tab:cross_noise} demonstrates a critical insight: at moderate noise ($\sigma = 50$), both architectures reach comparable performance (NAFNet: 26.39~dB vs.\ DAE: 26.34~dB, $\Delta = +0.05$~dB). However, under severe noise ($\sigma = 100$), the gap widens dramatically to +2.09~dB in favor of NAFNet. This indicates that \textbf{skip connections and hierarchical attention become essential only when the degradation exceeds the bottleneck's capacity} to encode sufficient information for reconstruction. For moderate noise, even a simple encoder-decoder without shortcuts can effectively restore the signal.
+
 % ============================================================
 \subsection{Visual Comparison}
 

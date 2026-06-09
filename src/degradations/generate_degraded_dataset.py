@@ -67,7 +67,7 @@ def generate_degraded_dataset(
         # Convert BGR to RGB
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-        per_image_seed = seed + i  # important: different noise per image
+        per_image_seed = seed + idx  # important: different noise per image
 
         # Apply degradation based on type
         if degradation_type == "quantization":

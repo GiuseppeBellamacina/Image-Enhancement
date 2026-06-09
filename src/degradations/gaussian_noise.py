@@ -5,6 +5,7 @@ Adds Gaussian noise to images with configurable standard deviation.
 """
 
 import numpy as np
+import numpy.random as rng
 from typing import Union, Optional
 
 

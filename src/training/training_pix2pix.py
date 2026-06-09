@@ -68,14 +68,13 @@ def train_epoch_pix2pix(
     total_loss_D_real = 0.0
     total_loss_D_fake = 0.0
 
-    # 🆕 Noise statistics accumulators (for residual learning)
     total_noise_mean = 0.0
     total_noise_std = 0.0
     total_noise_max = 0.0
-    total_noise_abs_mean = 0.0  # 🆕 Mean of absolute values
-    total_noise_outliers_pct = 0.0  # 🆕 % of values > noise_clamp_value
-    total_output_clipped_pct = 0.0  # 🆕 % of output pixels clipped to ±1
-    noise_batches = 0  # Count batches with noise_hat
+    total_noise_abs_mean = 0.0
+    total_noise_outliers_pct = 0.0
+    total_output_clipped_pct = 0.0
+    noise_batches = 0
 
     pbar = create_progress_bar(
         train_loader, epoch, phase="Train", leave=False, position=1
@@ -179,12 +178,10 @@ def train_epoch_pix2pix(
                         # Generator predicts noise
                         noise_hat_raw = generator(degraded)
 
-                        # 🆕 CLAMP noise_hat to prevent extreme corrections
                         noise_hat = torch.clamp(
                             noise_hat_raw, -noise_clamp_value, noise_clamp_value
                         )
 
-                        # 🆕 Calculate statistics AFTER clamping
                         with torch.no_grad():
                             # Statistics on clamped noise
                             total_noise_mean += noise_hat.mean().item()
@@ -192,7 +189,6 @@ def train_epoch_pix2pix(
                             total_noise_max += noise_hat.abs().max().item()
                             total_noise_abs_mean += noise_hat.abs().mean().item()
 
-                            # 🆕 Diagnostic: % outliers BEFORE clamping (for monitoring)
                             outliers = (noise_hat_raw.abs() > noise_clamp_value).float()
                             total_noise_outliers_pct += outliers.mean().item() * 100
 
@@ -202,7 +198,6 @@ def train_epoch_pix2pix(
                         fake_images_raw = degraded - noise_hat
                         fake_images = torch.clamp(fake_images_raw, -1, 1)
 
-                        # 🆕 Diagnostic: % pixels clipped in output
                         with torch.no_grad():
                             clipped = (fake_images_raw.abs() >= 1.0).float()
                             total_output_clipped_pct += clipped.mean().item() * 100
@@ -247,12 +242,10 @@ def train_epoch_pix2pix(
                     # Generator predicts noise
                     noise_hat_raw = generator(degraded)
 
-                    # 🆕 CLAMP noise_hat to prevent extreme corrections
                     noise_hat = torch.clamp(
                         noise_hat_raw, -noise_clamp_value, noise_clamp_value
                     )
 
-                    # 🆕 Calculate statistics AFTER clamping
                     with torch.no_grad():
                         # Statistics on clamped noise
                         total_noise_mean += noise_hat.mean().item()
@@ -260,7 +253,6 @@ def train_epoch_pix2pix(
                         total_noise_max += noise_hat.abs().max().item()
                         total_noise_abs_mean += noise_hat.abs().mean().item()
 
-                        # 🆕 Diagnostic: % outliers BEFORE clamping (for monitoring)
                         outliers = (noise_hat_raw.abs() > noise_clamp_value).float()
                         total_noise_outliers_pct += outliers.mean().item() * 100
 
@@ -270,7 +262,7 @@ def train_epoch_pix2pix(
                     fake_images_raw = degraded - noise_hat
                     fake_images = torch.clamp(fake_images_raw, -1, 1)
 
-                    # 🆕 Diagnostic: % pixels clipped in output
+                    # Diagnostic: % pixels clipped in output
                     with torch.no_grad():
                         clipped = (fake_images_raw.abs() >= 1.0).float()
                         total_output_clipped_pct += clipped.mean().item() * 100
@@ -349,7 +341,7 @@ def train_epoch_pix2pix(
         "loss_D_fake": total_loss_D_fake / n_batches,
     }
 
-    # 🆕 Add noise statistics if residual learning was used
+    #  Add noise statistics if residual learning was used
     if noise_batches > 0:
         metrics["noise_mean"] = total_noise_mean / noise_batches
         metrics["noise_std"] = total_noise_std / noise_batches
@@ -357,17 +349,17 @@ def train_epoch_pix2pix(
         metrics["noise_abs_mean"] = total_noise_abs_mean / noise_batches
         metrics["noise_outliers_pct"] = (
             total_noise_outliers_pct / noise_batches
-        )  # 🆕 % outliers
+        )  #  % outliers
         metrics["output_clipped_pct"] = (
             total_output_clipped_pct / noise_batches
-        )  # 🆕 % clipped pixels
+        )  #  % clipped pixels
     else:
         metrics["noise_mean"] = 0.0
         metrics["noise_std"] = 0.0
         metrics["noise_max"] = 0.0
         metrics["noise_abs_mean"] = 0.0
-        metrics["noise_outliers_pct"] = 0.0  # 🆕
-        metrics["output_clipped_pct"] = 0.0  # 🆕
+        metrics["noise_outliers_pct"] = 0.0  #
+        metrics["output_clipped_pct"] = 0.0  #
 
     return metrics
 
@@ -414,16 +406,16 @@ def validate_pix2pix(
     total_loss_G_L1 = 0.0
     total_loss_D = 0.0
 
-    # 🆕 Noise statistics accumulators (for residual learning)
+    #  Noise statistics accumulators (for residual learning)
     total_noise_mean = 0.0
     total_noise_std = 0.0
     total_noise_max = 0.0
-    total_noise_abs_mean = 0.0  # 🆕 Mean of absolute values
-    total_noise_outliers_pct = 0.0  # 🆕 % of values > noise_clamp_value
-    total_output_clipped_pct = 0.0  # 🆕 % of output pixels clipped to ±1
+    total_noise_abs_mean = 0.0  #  Mean of absolute values
+    total_noise_outliers_pct = 0.0  #  % of values > noise_clamp_value
+    total_output_clipped_pct = 0.0  #  % of output pixels clipped to ±1
     noise_batches = 0  # Count batches with noise_hat
 
-    # 🆕 SSIM calculation setup
+    #  SSIM calculation setup
     ssim_values = []
     if calculate_ssim:
         from skimage.metrics import structural_similarity as ssim
@@ -444,19 +436,19 @@ def validate_pix2pix(
                 # Generator predicts noise
                 noise_hat_raw = generator(degraded)
 
-                # 🆕 CLAMP noise_hat to prevent extreme corrections
+                #  CLAMP noise_hat to prevent extreme corrections
                 noise_hat = torch.clamp(
                     noise_hat_raw, -noise_clamp_value, noise_clamp_value
                 )
 
-                # 🆕 Calculate statistics AFTER clamping
+                #  Calculate statistics AFTER clamping
                 # Statistics on clamped noise
                 total_noise_mean += noise_hat.mean().item()
                 total_noise_std += noise_hat.std().item()
                 total_noise_max += noise_hat.abs().max().item()
                 total_noise_abs_mean += noise_hat.abs().mean().item()
 
-                # 🆕 Diagnostic: % outliers BEFORE clamping (for monitoring)
+                #  Diagnostic: % outliers BEFORE clamping (for monitoring)
                 outliers = (noise_hat_raw.abs() > noise_clamp_value).float()
                 total_noise_outliers_pct += outliers.mean().item() * 100
 
@@ -466,7 +458,7 @@ def validate_pix2pix(
                 fake_images_raw = degraded - noise_hat
                 fake_images = torch.clamp(fake_images_raw, -1, 1)
 
-                # 🆕 Diagnostic: % pixels clipped in output
+                #  Diagnostic: % pixels clipped in output
                 clipped = (fake_images_raw.abs() >= 1.0).float()
                 total_output_clipped_pct += clipped.mean().item() * 100
             else:
@@ -500,7 +492,7 @@ def validate_pix2pix(
             total_loss_G_L1 += loss_G_L1.item()
             total_loss_D += loss_D.item()
 
-            # 🆕 Calculate SSIM on first N batches only (for efficiency)
+            #  Calculate SSIM on first N batches only (for efficiency)
             if calculate_ssim and batch_idx < ssim_max_batches:
                 # Convert to numpy for SSIM calculation
                 fake_np = fake_images.cpu().numpy()
@@ -550,7 +542,7 @@ def validate_pix2pix(
         "loss_D": total_loss_D / n_batches,
     }
 
-    # 🆕 Add noise statistics if residual learning was used
+    #  Add noise statistics if residual learning was used
     if noise_batches > 0:
         metrics["noise_mean"] = total_noise_mean / noise_batches
         metrics["noise_std"] = total_noise_std / noise_batches
@@ -558,19 +550,19 @@ def validate_pix2pix(
         metrics["noise_abs_mean"] = total_noise_abs_mean / noise_batches
         metrics["noise_outliers_pct"] = (
             total_noise_outliers_pct / noise_batches
-        )  # 🆕 % outliers
+        )  #  % outliers
         metrics["output_clipped_pct"] = (
             total_output_clipped_pct / noise_batches
-        )  # 🆕 % clipped pixels
+        )  #  % clipped pixels
     else:
         metrics["noise_mean"] = 0.0
         metrics["noise_std"] = 0.0
         metrics["noise_max"] = 0.0
         metrics["noise_abs_mean"] = 0.0
-        metrics["noise_outliers_pct"] = 0.0  # 🆕
-        metrics["output_clipped_pct"] = 0.0  # 🆕
+        metrics["noise_outliers_pct"] = 0.0  #
+        metrics["output_clipped_pct"] = 0.0  #
 
-    # 🆕 Add SSIM if calculated
+    #  Add SSIM if calculated
     if calculate_ssim and ssim_values:
         metrics["ssim"] = sum(ssim_values) / len(ssim_values)
 

@@ -5,19 +5,19 @@ import torch.nn as nn
 class DnCNN(nn.Module):
     """
     DnCNN: Denoising Convolutional Neural Network
-    
+
     Architecture:
     - Layer 1: Conv(3→64) + ReLU (no BN)
     - Layers 2-16: Conv(64→64) + BN + ReLU (x15)
     - Layer 17: Conv(64→3) (output noise residual)
     """
-    
+
     def __init__(
-        self, 
-        in_channels: int = 3, 
-        out_channels: int = 3, 
-        num_layers: int = 20, 
-        features: int = 64
+        self,
+        in_channels: int = 3,
+        out_channels: int = 3,
+        num_layers: int = 20,
+        features: int = 64,
     ):
         """
         Args:
@@ -27,59 +27,53 @@ class DnCNN(nn.Module):
             features: Number of feature maps in hidden layers (default: 64)
         """
         super(DnCNN, self).__init__()
-        
+
         self.num_layers = num_layers
-        
+
         layers = []
-        
+
         # Layer 1: Conv + ReLU (NO Batch Normalization)
         layers.append(
             nn.Conv2d(
-                in_channels, 
-                features, 
-                kernel_size=3, 
-                padding=1, 
-                bias=True  # bias=True perché non c'è BN
+                in_channels,
+                features,
+                kernel_size=3,
+                padding=1,
+                bias=True,  # bias=True perché non c'è BN
             )
         )
         layers.append(nn.ReLU(inplace=True))
-        
+
         # Layers 2 to (num_layers - 1): Conv + BN + ReLU
         for _ in range(num_layers - 2):
             layers.append(
                 nn.Conv2d(
-                    features, 
-                    features, 
-                    kernel_size=3, 
-                    padding=1, 
-                    bias=False  # bias=False perché c'è BN dopo
+                    features,
+                    features,
+                    kernel_size=3,
+                    padding=1,
+                    bias=False,  # bias=False perché c'è BN dopo
                 )
             )
             layers.append(nn.BatchNorm2d(features))
             layers.append(nn.ReLU(inplace=True))
-        
+
         # Layer num_layers: Conv finale (predice il rumore)
         layers.append(
-            nn.Conv2d(
-                features, 
-                out_channels, 
-                kernel_size=3, 
-                padding=1, 
-                bias=True
-            )
+            nn.Conv2d(features, out_channels, kernel_size=3, padding=1, bias=True)
         )
-        
+
         self.dncnn = nn.Sequential(*layers)
 
         self._initialize_weights()
-    
+
     def forward(self, x):
         """
         Forward pass con Residual Learning
-        
+
         Args:
             x: Immagine rumorosa [B, C, H, W]
-        
+
         Returns:
             Immagine denoised [B, C, H, W]
         """
@@ -90,11 +84,11 @@ class DnCNN(nn.Module):
 
         if not self.training:
             output = torch.clamp(output, min=-1.0, max=1.0)
-        
+
         # Residual learning: sottrai il rumore dall'input
         # clean = noisy - noise
         return output
-    
+
     def get_num_params(self):
         """Conta i parametri addestrabili"""
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
@@ -102,7 +96,7 @@ class DnCNN(nn.Module):
     def _initialize_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.BatchNorm2d):
@@ -114,7 +108,7 @@ class DnCNN(nn.Module):
 if __name__ == "__main__":
     model = DnCNN(in_channels=3, out_channels=3, num_layers=20, features=64)
     print(f"DnCNN-20 parameters: {model.get_num_params():,}")
-    
+
     # Test forward pass
     x = torch.randn(4, 3, 128, 128)  # Batch di 4 immagini 128×128
     y = model(x)

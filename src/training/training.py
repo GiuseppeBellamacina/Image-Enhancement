@@ -13,7 +13,9 @@ from .training_utils import (
 )
 
 
-def _forward_with_sigma(model: torch.nn.Module, x: torch.Tensor, noise_sigma: float | None):
+def _forward_with_sigma(
+    model: torch.nn.Module, x: torch.Tensor, noise_sigma: float | None
+):
     if noise_sigma is None:
         return model(x)
     return model(x, sigma=noise_sigma)
@@ -90,7 +92,9 @@ def train_epoch(
                 loss, metrics = criterion(output, clean)
 
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=gradient_clip)
+                torch.nn.utils.clip_grad_norm_(
+                    model.parameters(), max_norm=gradient_clip
+                )
                 optimizer.step()
 
             # Update metrics

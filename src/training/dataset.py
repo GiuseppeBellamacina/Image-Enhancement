@@ -45,7 +45,8 @@ class ImageEnhancementDataset(Dataset):
         self.mode = mode
 
         self.degraded_files = sorted(
-            list(self.degraded_dir.glob("*.png")) + list(self.degraded_dir.glob("*.jpg"))
+            list(self.degraded_dir.glob("*.png"))
+            + list(self.degraded_dir.glob("*.jpg"))
         )
         self.clean_files = sorted(
             list(self.clean_dir.glob("*.png")) + list(self.clean_dir.glob("*.jpg"))
@@ -76,9 +77,9 @@ class ImageEnhancementDataset(Dataset):
         self.degraded_files = [f[0] for f in valid_files]
         self.clean_files = [f[1] for f in valid_files]
 
-        assert len(self.degraded_files) > 0, (
-            f"No valid images found! All images are smaller than {patch_size}x{patch_size}"
-        )
+        assert (
+            len(self.degraded_files) > 0
+        ), f"No valid images found! All images are smaller than {patch_size}x{patch_size}"
 
         print(f"Loaded {len(self.degraded_files)} valid images for {mode} set")
 
@@ -120,7 +121,7 @@ class ImageEnhancementDataset(Dataset):
         img_idx = idx // self.patches_per_image
 
         degraded = self._read_rgb(str(self.degraded_files[img_idx]))  # <-- CHANGED
-        clean = self._read_rgb(str(self.clean_files[img_idx]))        # <-- CHANGED
+        clean = self._read_rgb(str(self.clean_files[img_idx]))  # <-- CHANGED
 
         degraded_patch, clean_patch = self.extract_random_patch(degraded, clean)
 
@@ -146,6 +147,7 @@ def _worker_init_fn(worker_id: int):  # <-- NEW
     # seed numpy per worker (import locale per non aggiungere dipendenze globali)
     try:
         import torch
+
         seed = torch.initial_seed() % (2**32)
         np.random.seed(seed + worker_id)
     except Exception:
@@ -168,7 +170,9 @@ def get_dataloaders(
     Create train and validation dataloaders.
     """
     if patches_per_image_val is None:
-        patches_per_image_val = min(8, patches_per_image)  # <-- NEW default (val più veloce)
+        patches_per_image_val = min(
+            8, patches_per_image
+        )  # <-- NEW default (val più veloce)
 
     train_dataset = ImageEnhancementDataset(
         degraded_dir=train_degraded_dir,
@@ -214,8 +218,12 @@ def get_dataloaders(
     )
 
     print("📊 Dataset Summary:")
-    print(f"   Train: {len(train_dataset)} patches from {len(train_dataset.degraded_files)} images")
-    print(f"   Val:   {len(val_dataset)} patches from {len(val_dataset.degraded_files)} images")
+    print(
+        f"   Train: {len(train_dataset)} patches from {len(train_dataset.degraded_files)} images"
+    )
+    print(
+        f"   Val:   {len(val_dataset)} patches from {len(val_dataset.degraded_files)} images"
+    )
     print(f"   Batch size: {batch_size}")
     print(f"   Patch size: {patch_size}x{patch_size}")
 

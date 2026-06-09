@@ -33,7 +33,9 @@ def assert_checkpoint_finite(checkpoint: dict, *, check_optimizer: bool) -> None
     Corrupted training (e.g. numerical blow-up) can save non-finite weights; loading
     them produces NaN metrics immediately and wastes compute.
     """
-    model_paths = _nonfinite_tensor_paths(checkpoint.get("model_state_dict", {}), "model")
+    model_paths = _nonfinite_tensor_paths(
+        checkpoint.get("model_state_dict", {}), "model"
+    )
     if model_paths:
         sample = model_paths[:15]
         more = f" ... (+{len(model_paths) - 15} more)" if len(model_paths) > 15 else ""
@@ -117,9 +119,7 @@ def load_checkpoint(
     """
     checkpoint = torch.load(filepath, map_location=device)
 
-    assert_checkpoint_finite(
-        checkpoint, check_optimizer=optimizer is not None
-    )
+    assert_checkpoint_finite(checkpoint, check_optimizer=optimizer is not None)
 
     # Load model state
     model.load_state_dict(checkpoint["model_state_dict"])

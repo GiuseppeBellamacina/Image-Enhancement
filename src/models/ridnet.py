@@ -30,9 +30,9 @@ class ChannelAttention(nn.Module):
         )
 
     def forward(self, x):
-        weights = self.gap(x)       # [B, C, 1, 1]
+        weights = self.gap(x)  # [B, C, 1, 1]
         weights = self.fc(weights)  # [B, C, 1, 1]  values in (0, 1)
-        return x * weights          # broadcast over H, W
+        return x * weights  # broadcast over H, W
 
 
 class EAB(nn.Module):
@@ -69,13 +69,19 @@ class EAB(nn.Module):
         self.residual_scale = residual_scale
 
         self.branch = nn.Sequential(
-            nn.Conv2d(channels, channels, kernel_size=3, padding=1, dilation=1, bias=False),
+            nn.Conv2d(
+                channels, channels, kernel_size=3, padding=1, dilation=1, bias=False
+            ),
             nn.BatchNorm2d(channels),
             nn.ReLU(inplace=True),
-            nn.Conv2d(channels, channels, kernel_size=3, padding=2, dilation=2, bias=False),
+            nn.Conv2d(
+                channels, channels, kernel_size=3, padding=2, dilation=2, bias=False
+            ),
             nn.BatchNorm2d(channels),
             nn.ReLU(inplace=True),
-            nn.Conv2d(channels, channels, kernel_size=3, padding=3, dilation=3, bias=False),
+            nn.Conv2d(
+                channels, channels, kernel_size=3, padding=3, dilation=3, bias=False
+            ),
             nn.BatchNorm2d(channels),
             nn.ReLU(inplace=True),
         )

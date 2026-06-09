@@ -280,7 +280,13 @@ def run_training(
             if epoch % val_every == 0:
                 val_start_time = time.time()
                 val_metrics = validate(
-                    model, val_loader, criterion, device, epoch, use_amp=use_amp, noise_sigma=config.get("noise_sigma", 100.0) if config else 100.0
+                    model,
+                    val_loader,
+                    criterion,
+                    device,
+                    epoch,
+                    use_amp=use_amp,
+                    noise_sigma=config.get("noise_sigma", 100.0) if config else 100.0,
                 )
                 inference_time = time.time() - val_start_time
             else:
